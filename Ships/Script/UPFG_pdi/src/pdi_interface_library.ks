@@ -1,5 +1,5 @@
-GLOBAL terminalwidth IS 65.
-GLOBAL terminalheight IS 59.
+GLOBAL terminalwidth IS 64.
+GLOBAL terminalheight IS 47.
 
 SET TERMINAL:WIDTH TO terminalwidth.
 SET TERMINAL:HEIGHT TO terminalheight.
@@ -77,12 +77,12 @@ FUNCTION drawUI {
 	PRINT "|=============================================================|" AT (0,22).
 	PRINT "|         VEHICLE DATA         |                              |" AT (0,23).
 	PRINT "|                              |                              |" AT (0,24).
-	PRINT "|   CURRENT STG   :            |                              |" AT (0,25).
-	PRINT "|   STG THRUST    :            |                              |" AT (0,26).
-	PRINT "|   STG TWR       :            |                              |" AT (0,27).
-	PRINT "|   STG REM TIME  :            |                              |" AT (0,28).
+	PRINT "|   TOT BURN TIME :            |                              |" AT (0,25).
+	PRINT "|   CURRENT TWR   :            |                              |" AT (0,26).
+	PRINT "|   CMD THROTTLE  :            |                              |" AT (0,27).
+	PRINT "|   CURRENT STG   :            |                              |" AT (0,28).
 	PRINT "|   STG TYPE      :            |                              |" AT (0,29).
-	PRINT "|   CMD THROTTLE  :            |                              |" AT (0,30).
+	PRINT "|   STG REM TIME  :            |                              |" AT (0,30).
 	PRINT "|                              |                              |" AT (0,31).
 	PRINT "|=============================================================|" AT (0,32).
 	PRINT "|                         MESSAGE BOX:                        |" AT (0,33).
@@ -197,7 +197,7 @@ FUNCTION dataViz {
 		IF DEFINED (upfgInternal) {
 			PRINTPLACE(sectotime(upfgInternal["Tgo"]),12,50,vehloc+3). 
 			PRINTPLACE(ROUND(upfgInternal["vgo"]:MAG,0),12,50,vehloc+4). 
-			PRINTPLACE(ROUND(upfgInternal["z_error"],1)+ " m",12,50,vehloc+5). 
+			PRINTPLACE(ROUND(upfgInternal["z_error"],0)+ " m",12,50,vehloc+5). 
 		}
 		
 	} ELSE {		

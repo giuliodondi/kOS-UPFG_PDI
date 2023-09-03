@@ -1,4 +1,4 @@
-
+GLOBAL pdi_angle_guess IS 20.
 
 GLOBAL current_orbit IS LEXICON (	
 								"periapsis",ORBIT:PERIAPSIS,
@@ -18,7 +18,7 @@ GLOBAL orbitstate IS  LEXICON("radius",0,"velocity",0).
 								//INITIALISATION FUNCTION 
 								
 // need to work in upfg frame								
-FUNCTION setup {
+FUNCTION setup_pre_converge {
 	
 	landing_state:ADD("radius", v(0,0,0)).
 	landing_state:ADD("velvec", v(0,0,0)).
@@ -46,16 +46,16 @@ FUNCTION setup {
 					))
 	) .
 	
-	PRINT "RUNNING UPFG PRE-CONVERGENCE" AT (0,5).
+	PRINT " RUNNING UPFG PRE-CONVERGENCE" AT (0,5).
 	
 	//initialise pdi time ahead 
 	//if the current position is less than 60° from the landing site right now add one orbit
-	shift_landing_posvec(current_orbit["pdi_time_ahead"]).
+	SET landing_state["radius"] TO shift_landing_posvec(landing_state, current_orbit["pdi_time_ahead"]).
 	
 	LOCAL tgtvec_proj IS VXCL(current_orbit["normal"], landing_state["radius"]):NORMALIZED.
 	
-	LOCAL pdi_guess_vec IS rodrigues(tgtvec_proj, current_orbit["normal"], -30):NORMALIZED.
-	LOCAL min_standoff_initial_vec IS rodrigues(tgtvec_proj, current_orbit["normal"], -60):NORMALIZED.
+	LOCAL pdi_guess_vec IS rodrigues(tgtvec_proj, current_orbit["normal"], -pdi_angle_guess):NORMALIZED.
+	LOCAL min_standoff_initial_vec IS rodrigues(tgtvec_proj, current_orbit["normal"], -2*pdi_angle_guess):NORMALIZED.
 	LOCAL veh_pos IS vecYZ(-SHIP:ORBIT:BODY:POSITION).
 	
 	//choose the maximum bw the guess pdi position and the min standoff
@@ -67,7 +67,11 @@ FUNCTION setup {
 	set current_orbit["radius"] TO pdi_guess_vec.
 	
 	LOCAL alpha_landing_error_old IS 0.
+	LOCAL iter_count IS 0.
 	UNTIL FALSE {
+		SET iter_count TO iter_count + 1.
+	
+		PRINT " ITERATION " +  iter_count AT (0,7).
 	
 		//calculate angle bw the standoff and the pdi guess
 		LOCAL standoff_angle_to_pdi IS signed_angle(min_standoff_initial_vec, current_orbit["radius"], current_orbit["normal"], 0).
@@ -75,9 +79,14 @@ FUNCTION setup {
 		//add 30° to the standoff angle to find the time to pdi_guess
 		SET current_orbit["pdi_time_ahead"] TO eta_to_dt(standoff_angle + standoff_angle_to_pdi, current_orbit["SMA"], current_orbit["ecc"]).
 
-		print "standoff_angle " + standoff_angle at (0,1).
-		print "standoff_angle_to_pdi " + standoff_angle_to_pdi at (0,2).
-		print "pdi_time " + current_orbit["pdi_time_ahead"] at (0,3).
+		if (debug) {
+			print "standoff_angle " + standoff_angle at (0,10).
+			print "standoff_angle_to_pdi " + standoff_angle_to_pdi at (0,11).
+			print "pdi_time " + sectotime(current_orbit["pdi_time_ahead"]) at (0,12).
+			
+			print "radius " + (landing_state["radius"]:mag - body:radius) at (0,12).
+			
+		}
 		
 		
 		SET landing_state tO update_landing_state(landing_state, current_orbit["radius"], current_orbit["pdi_time_ahead"]).
@@ -91,8 +100,8 @@ FUNCTION setup {
 
 		UNTIL FALSE {
 			IF usc["conv"]=1 {
-				PRINT "                                                         " AT (0,7).
-				PRINT "GUIDANCE CONVERGED IN " + usc["itercount"] + " ITERATIONS" AT (0,7).
+				PRINT "                                                          " AT (0,9).
+				PRINT " GUIDANCE CONVERGED IN " + usc["itercount"] + " ITERATIONS" AT (0,9).
 				BREAK.
 			}
 			SET upfgInternal TO upfg_wrapper(upfgInternal).
@@ -102,18 +111,21 @@ FUNCTION setup {
 		
 		LOCAL alpha_landing_error IS signed_angle(upfgInternal["rp"], landing_state["radius"], landing_state["normal"]:NORMALIZED, 0).
 		
-		PRINTPLACE(sectotime(upfgInternal["Tgo"]),12,50,10). 
-		PRINTPLACE(ROUND(upfgInternal["vgo"]:MAG,0),12,50,11). 
-		PRINTPLACE(ROUND(alpha_landing_error,5),12,50,12). 
+		if (debug) {
+			PRINTPLACE(sectotime(upfgInternal["Tgo"]),12,50,10). 
+			PRINTPLACE(ROUND(upfgInternal["vgo"]:MAG,0),12,50,11). 
+			PRINTPLACE(ROUND(alpha_landing_error,5),12,50,12). 
+			
+			clearvecdraws().
 		
-		clearvecdraws().
-	
-		arrow_body(vecyz(current_orbit["normal"]) * SHIP:ORBIT:BODY:RADIUS, "normal").
-		arrow_body(vecyz(landing_state["radius"]),"tgt").
-	
-	
-		arrow_body(vecyz(upfgInternal["rp"]),"rp").
-		arrow_body(vecyz(orbitstate["radius"]),"initial_r").
+			arrow_body(vecyz(current_orbit["normal"]) * SHIP:ORBIT:BODY:RADIUS, "normal").
+			arrow_body(vecyz(landing_state["radius"]),"tgt").
+		
+		
+			arrow_body(vecyz(upfgInternal["rp"]),"rp").
+			arrow(vecyz(orbitstate["radius"]),"initial_r", SHIP:ORBIT:BODY:POSITION, 1.2).
+			arrow(vecyz(orbitstate["velocity"]*1000),"initial_v", SHIP:ORBIT:BODY:POSITION + vecyz(orbitstate["radius"])*1.2, 1.2).
+		}
 		
 		IF (ABS(alpha_landing_error - alpha_landing_error_old) < 0.01) {BREAK.}
 		
@@ -121,18 +133,14 @@ FUNCTION setup {
 		
 		SET current_orbit["radius"] TO rodrigues(current_orbit["radius"], current_orbit["normal"],alpha_landing_error).
 		
-		WAIT 0.8.
+		if (debug) {
+			WAIT 0.8.
+		}
 	}
 	
-	
-	until false{}
-	
-
-	
-	
-	
-	
-	
+	if (debug) {
+		until false{}
+	}
 	
 	
 	SET current_orbit["mode"] TO 1.
@@ -215,21 +223,23 @@ FUNCTION update_navigation {
 //will move the landing site according to body rotation and time parameter.
 //time parameter is positive in the future i.e. move the target "ahead"
 FUNCTION shift_landing_posvec {
+	PARAMETER ldg_state.
 	PARAMETER dt.
-
-	LOCAL mode IS landing_state["mode"].
-	//if pre-convergence expect mode to not be zero
-	//if landing mode it should be zero
-	//switches the sign of the body rotation vector
 	
-	LOCAL rotvec IS vecYZ(BODY:ANGULARVEL:NORMALIZED).
+	LOCAL site IS vecYZ(ldg_state["tgtsite"]:POSITION - SHIP:ORBIT:BODY:POSITION).
 	
-	LOCAL site IS vecYZ(landing_state["tgtsite"]:POSITION - SHIP:ORBIT:BODY:POSITION).
-	
-	SET landing_state["radius"] TO  site:NORMALIZED*(BODY:RADIUS + landing_state["tgtsite"]:TERRAINHEIGHT).
+	SET ldg_state["radius"] TO  site:NORMALIZED*(BODY:RADIUS + ldg_state["tgtsite"]:TERRAINHEIGHT).
 	IF (NOT dt=0) {
-		SET landing_state["radius"] TO  rodrigues(landing_state["radius"], rotvec:NORMALIZED, 360*dt/BODY:ROTATIONPERIOD).
+		LOCAL mode IS ldg_state["mode"].
+		//if pre-convergence expect mode to not be zero
+		//if landing mode it should be zero
+		//switches the sign of the body rotation vector
+		
+		LOCAL rotvec IS vecYZ(BODY:ANGULARVEL:NORMALIZED).
+		SET ldg_state["radius"] TO  rodrigues(ldg_state["radius"], rotvec:NORMALIZED, 360*dt/BODY:ROTATIONPERIOD).
 	}
+	
+	RETURN ldg_state["radius"].
 }
 
 
@@ -239,7 +249,7 @@ FUNCTION update_landing_state {
 	PARAMETER cur_pos.
 	PARAMETER dt.
 	
-	shift_landing_posvec(dt).
+	SET ldg_state["radius"] TO shift_landing_posvec(ldg_state, dt).
 	
 	LOCAL dr IS ldg_state["radius"] - cur_pos.
 	SET ldg_state["normal"] TO VCRS(ldg_state["radius"],dr):NORMALIZED.
@@ -275,6 +285,7 @@ FUNCTION update_landing_state {
 
 //redesignate landing target during P64
 FUNCTION redesig_landing_tgt {
+	PARAMETER delta_shift.
 	PARAMETER refvec.
 	PARAMETER enabled_.
 	
@@ -290,15 +301,7 @@ FUNCTION redesig_landing_tgt {
 		SET landing_state["tgtsite"] TO LATLNG(tgtlat,tgtlong).
 	}
 
-	clearvecdraws().
-	LOCAL arrow_scalefac IS 1 + landing_state["tgtsite"]:DISTANCE/150.
 	
-	pos_arrow(
-		landing_state["tgtsite"]:POSITION,
-		"target",
-		10*arrow_scalefac,
-		0.05*arrow_scalefac
-	).
 }
 
 
@@ -321,4 +324,16 @@ FUNCTION get_shifts {
 	SET out:Y TO - controlvec:X*SIN(alpha) + controlvec:Y*COS(alpha).
 	
 	return out.
+}
+
+FUNCTION redraw_target_arrow {
+	clearvecdraws().
+	LOCAL arrow_scalefac IS 15 + landing_state["tgtsite"]:DISTANCE/10.
+	
+	pos_arrow(
+		landing_state["tgtsite"],
+		"target",
+		arrow_scalefac,
+		0.1
+	).
 }

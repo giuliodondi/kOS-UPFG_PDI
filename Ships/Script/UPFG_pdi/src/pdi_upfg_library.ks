@@ -1,12 +1,12 @@
 SET CONFIG:IPU TO 800.		
 
 //conic state extrapolation function / gravity integrator
-//RUNPATH("0:/Libraries/cser_new").
-RUNPATH("0:/Libraries/cser_sg_simple").
+RUNPATH("0:/Libraries/cser_new").
+//RUNPATH("0:/Libraries/cser_sg_simple").
 
 //	Settings for UPFG
 GLOBAL upfgFinalizationTime IS 20.		//	When time-to-go gets below that, keep attitude stable and simply count down time to cutoff.
-GLOBAL upfgConvergenceTgo IS 0.2.	//	Maximum difference between consecutive UPFG T-go predictions that allow accepting the solution.
+GLOBAL upfgConvergenceTgo IS 0.5.	//	Maximum difference between consecutive UPFG T-go predictions that allow accepting the solution.
 GLOBAL upfgConvergenceVec IS 15.	//	Maximum angle between guidance vectors calculated by UPFG between stages that allow accepting the solution.
 
 
@@ -143,8 +143,6 @@ FUNCTION upfg_wrapper {
 			//in this case we had convergence and we lost it, reset itercount
 			SET usc["itercount"] TO 0.
 		}
-		
-		SET usc["lastthrot"] TO upfgOutput["throtset"].
 		
 		IF usc["conv"]=1 { //converged and stable, accept result
 				SET usc["lastvec"] TO upfgOutput["steering"].
@@ -388,7 +386,7 @@ FUNCTION upfg_landing {
 	}
 	ELSE IF (ldg_state["mode"]=0) {	
 	
-		SET ldg_state TO update_landing_state(ldg_state, tgo, rp).
+		SET ldg_state TO update_landing_state(ldg_state, r_cur, tgo).
 		SET rd TO ldg_state["radius"].
 		SET vd TO ldg_state["velvec"].
 	
@@ -399,6 +397,7 @@ FUNCTION upfg_landing {
 		LOCAL dtgo IS -2*drz/vgoz.
 		
 		LOCAL K_gain IS tb[0]/(tb[0] + dtgo).
+		
 		//SET K_gain TO 1.1*K_gain.
 		SET Kk TO Kk*K_gain.
 		

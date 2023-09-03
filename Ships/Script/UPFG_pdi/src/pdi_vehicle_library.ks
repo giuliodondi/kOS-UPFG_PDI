@@ -1,7 +1,11 @@
 //Global vars
 
 GLOBAL g0 IS 9.80665. 
+GLOBAL g_body IS BODY:MU/(BODY:RADIUS^2).
 GLOBAL vehicle_pre_staging_t IS 5.
+GLOBAL vehicle_pre_conv_throt IS 0.8.
+//tilt angle limit from vertical during pitchdown and att hold modes
+gLOBAL vehicle__atthold_anglelim IS 20.
 
 
 GLOBAL vehiclestate IS LEXICON(
@@ -154,13 +158,15 @@ declare function initialise_vehicle{
 	SET vehiclestate["m_burn_left"] TO vehicle["stages"][1]["m_burn"].
 	
 	vehicle:ADD("ign_t", 0).
+	
+	//required to be facing ahead at pitchover
+	SET vehicle["roll"] TO 180.
 
 	SET control["roll_angle"] TO vehicle["roll"].
 	
 	SET vehicle["ign_t"] TO TIME:SECONDS.
 	
-	//to bypass iteration time of UPFG during pre-convergence
-	SET vehiclestate["staging_in_progress"] TO TRUE.
+	SET vehicle["stages"][vehiclestate["cur_stg"]]["Throttle"] TO 0.8.
 	
 	set_staging_trigger().
 	
@@ -193,7 +199,7 @@ FUNCTION get_stage {
 
 
 FUNCTION get_TWR {
-	RETURN vehiclestate["avg_thr"]:average()/(1000*SHIP:MASS*g0).
+	RETURN vehiclestate["avg_thr"]:average()/(1000*SHIP:MASS*g_body).
 }
 
 
@@ -497,7 +503,7 @@ FUNCTION set_staging_trigger {
 									//VEHICLE CONTROL FUNCTIONS
 
 
-FUNCTION setup_steering_magaer {
+FUNCTION setup_steering_manager {
 	STEERINGMANAGER:RESETTODEFAULT().
 	SET SteeringManager:MAXSTOPPINGTIME TO 4.
 	SET STEERINGMANAGER:ROLLCONTROLANGLERANGE TO 4.0.
@@ -507,6 +513,21 @@ FUNCTION setup_steering_magaer {
 	SET STEERINGMANAGER:PITCHPID:KD TO 0.2.
 	SET STEERINGMANAGER:YAWPID:KD TO 0.2.
 	SET STEERINGMANAGER:ROLLPID:KD TO 0.2.
+}
+
+
+//	Throttle controller for UPFG
+FUNCTION throttleControl {
+
+	local stg IS get_stage().
+	local throtval is stg["Throttle"].
+
+	LOCAL minthrot IS 0.
+	IF stg:HASKEY("minThrottle") {
+		SET minthrot TO stg["minThrottle"].
+	}
+	
+	RETURN throtteValueConverter(stg["Throttle"], minthrot).
 }
 
 //used in transition between UPFG and hover phases
@@ -522,7 +543,7 @@ FUNCTION pitchover {
 	parameter dt.
 	
 	//prevent the final latitude from being too close to the ground
-	SET h0 TO MAX(10,h0).
+	SET h0 TO MAX(60,h0).
 	
 	//prevents positive vertical velocity
 	SET hdot0 TO MIN(0,hdot0).
@@ -543,16 +564,16 @@ FUNCTION pitchover {
 	
 	LOCAL q_ IS ( total_acc + g_acc)*m/T.
 	
-	LOCAL kf IS q_/COS(anglelim).
+	LOCAL kf IS q_/COS(vehicle__atthold_anglelim).
 	
 	LOCAL kdot IS (kf - k0)*total_acc/ABS( hdot - hdot0) .
 	
-	SET k0 TO k0 + kdot*dt.
+	SET k0 TO k0 + CLAMP(kdot*dt,-0.1,0.1).
 	
 	LOCAL aalpha IS ABS(ARCCOS(limitarg(q_/k0))).
 	
-	//IF (aalpha > anglelim) {
-	//	SET aalpha TO anglelim.
+	//IF (aalpha > vehicle__atthold_anglelim) {
+	//	SET aalpha TO vehicle__atthold_anglelim.
 	//	SET throtval TO q_/COS(aalpha).
 	//}
 	
@@ -614,7 +635,7 @@ FUNCTION null_velocity {
 	LOCAL horiz_F IS  -horiz_v/dT.
 	
 	//limit deviation from the vertical to anglelim
-	SET horiz_F TO horiz_F:NORMALIZED*MIN(horiz_F:MAG,vert_F_mod*TAN(anglelim)).
+	SET horiz_F TO horiz_F:NORMALIZED*MIN(horiz_F:MAG,vert_F_mod*TAN(vehicle__atthold_anglelim)).
 	
 	//return the unit thrust direction in UPFG coordinates
 	LOCAL out_f IS (horiz_F + vert_F):NORMALIZED.
