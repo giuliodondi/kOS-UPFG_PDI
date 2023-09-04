@@ -35,6 +35,7 @@ function init{
 	GLOBAL null_velocity_gain IS 4.
 	//SET delta_shift TO delta_shift/SHIP:BODY:RADIUS.
 	
+	setup().
 	
 	initialise_vehicle().
 	
@@ -51,7 +52,7 @@ FUNCTION main_loop {
 	//to bypass iteration time of UPFG during pre-convergence
 	SET vehiclestate["staging_in_progress"] TO TRUE.
 
-	setup_pre_converge().
+	pre_converge_guidance().
 	
 	//initialise ignition timer
 	SET vehicle["ign_t"] TO TIME:SECONDS + current_orbit["pdi_time_ahead"].
@@ -78,8 +79,6 @@ FUNCTION main_loop {
 	
 	SET vehiclestate["ops_mode"] TO 1.
 	
-	SET vehiclestate["staging_in_progress"] TO FALSE.
-	
 	SET target_orbit TO landing_state.
 	
 	GLOBAL redesig_flag IS FALSE.
@@ -89,7 +88,7 @@ FUNCTION main_loop {
 	
 	//initialise PDI cues
 	//warp halt and attitude cue
-	WHEN TIME:SECONDS > vehicle["ign_t"] - (60*warp) THEN {
+	WHEN (TIME:SECONDS > vehicle["ign_t"] - 65) THEN {
 		set warp to 0.
 		SAS OFF.
 		RCS ON.
@@ -229,6 +228,8 @@ FUNCTION main_loop {
 					IF (TIME:SECONDS >= vehicle["ign_t"] - 0.05) {
 						addMessage("INITIATING POWERED DESCENT").
 						
+						SET vehiclestate["staging_in_progress"] TO FALSE.
+						
 						resetUPFG(upfgInternal).
 						SET landing_state["mode"] TO 0.
 						
@@ -257,8 +258,6 @@ FUNCTION main_loop {
 					LOCAL fore_vec IS SHIP:VELOCITY:SURFACE:NORMALIZED.
 					
 					LOCAL delta_shift IS 0.3 * landing_state["tgtsite"]:DISTANCE / SHIP:BODY:RADIUS.
-					
-					print "delta_shift " + delta_shift at (0,45).
 					
 					redesig_landing_tgt(delta_shift, fore_vec,redesig_flag).
 					
@@ -311,6 +310,8 @@ FUNCTION main_loop {
 				SET vehiclestate["ops_mode"] TO 5.
 				SET usc["lastthrot"] TO tgt_throt(0).
 				
+				SET tgt_rate TO -0.5.
+				
 				drawUI().
 				
 				//trigger to engage/disengage velocity nulling
@@ -351,10 +352,12 @@ FUNCTION main_loop {
 			LOCAL d_a IS delta_accel(surfacestate["vs"],tgt_rate,rate_dt).
 			SET usc["lastthrot"] TO tgt_throt(d_a).
 			SET SHIP:CONTROL:PILOTMAINTHROTTLE TO usc["lastthrot"].
+						
 			
 			//if SAS is off, null surface velocity
 			IF (NOT SAS) {
 				SET usc["lastvec"] TO null_velocity(null_velocity_gain).
+				SET control["roll_angle"] TO 0.
 				
 				//switch to ATT HOLD if control inputs are detected
 				IF NOT ( SHIP:CONTROL:PILOTROTATION:MAG=0 ) {

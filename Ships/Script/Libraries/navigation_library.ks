@@ -38,6 +38,11 @@ FUNCTION surfacevel {
 }
 
 
+//get gravitational acceleration
+FUNCTION bodygravacc {
+	RETURN BODY:MU/(BODY:RADIUS^2).
+}
+
 
 
 //convert earth-fixed longitude TO celestial longitude

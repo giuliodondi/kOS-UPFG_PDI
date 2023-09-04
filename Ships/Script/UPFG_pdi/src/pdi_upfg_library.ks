@@ -264,7 +264,7 @@ FUNCTION upfg_landing {
 		SET Lsum TO Lsum + Li[i].
 		
 		IF Lsum>vgo:MAG {
-			RETURN upfg_regular(
+			RETURN upfg_landing(
 				t,
 				vehicle:SUBLIST(0,vehicle:LENGTH-1),
 				ldg_state,

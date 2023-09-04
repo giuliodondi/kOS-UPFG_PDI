@@ -17,9 +17,7 @@ GLOBAL orbitstate IS  LEXICON("radius",0,"velocity",0).
 
 								//INITIALISATION FUNCTION 
 								
-// need to work in upfg frame								
-FUNCTION setup_pre_converge {
-	
+FUNCTION setup {
 	landing_state:ADD("radius", v(0,0,0)).
 	landing_state:ADD("velvec", v(0,0,0)).
 	landing_state:ADD("normal", v(0,0,0)).
@@ -45,6 +43,11 @@ FUNCTION setup_pre_converge {
 								current_orbit["periarg"]
 					))
 	) .
+}
+
+								
+// need to work in upfg frame								
+FUNCTION pre_converge_guidance {
 	
 	PRINT " RUNNING UPFG PRE-CONVERGENCE" AT (0,5).
 	
@@ -109,12 +112,16 @@ FUNCTION setup_pre_converge {
 			WAIT 0.
 		}
 		
-		LOCAL alpha_landing_error IS signed_angle(upfgInternal["rp"], landing_state["radius"], landing_state["normal"]:NORMALIZED, 0).
+		//ad tgo to the time ahead prediction
+		LOCAL shifted_tgt_tgo IS shift_landing_posvec(landing_state, current_orbit["pdi_time_ahead"] + upfgInternal["tgo"]).
+		
+		LOCAL alpha_landing_error IS signed_angle(upfgInternal["rp"], shifted_tgt_tgo, landing_state["normal"]:NORMALIZED, 0).
 		
 		if (debug) {
 			PRINTPLACE(sectotime(upfgInternal["Tgo"]),12,50,10). 
 			PRINTPLACE(ROUND(upfgInternal["vgo"]:MAG,0),12,50,11). 
-			PRINTPLACE(ROUND(alpha_landing_error,5),12,50,12). 
+			PRINTPLACE(ROUND(landing_state["delta_v_estimate"],0),12,50,12). 
+			PRINTPLACE(ROUND(alpha_landing_error,5),12,50,13). 
 			
 			clearvecdraws().
 		

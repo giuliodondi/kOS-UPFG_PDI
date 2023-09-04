@@ -1,11 +1,11 @@
 //Global vars
 
 GLOBAL g0 IS 9.80665. 
-GLOBAL g_body IS BODY:MU/(BODY:RADIUS^2).
 GLOBAL vehicle_pre_staging_t IS 5.
 GLOBAL vehicle_pre_conv_throt IS 0.8.
 //tilt angle limit from vertical during pitchdown and att hold modes
 gLOBAL vehicle__atthold_anglelim IS 20.
+gLOBAL vehicle_initial_thrust_val IS 0.85.
 
 
 GLOBAL vehiclestate IS LEXICON(
@@ -72,22 +72,8 @@ declare function initialise_vehicle{
 			PRINT ("ERROR! VEHICLE MASS PARAMETERS ILL-DEFINED") AT (1,40).
 			LOCAL X IS 1/0.
 		}
-		
-	
 	}
 	
-	
-	
-	
-	//local m_bias IS ship:mass.
-	//SET m_bias TO m_bias - vehicle["stages"][1]["m_initial"].
-	//IF m_bias<0.5 {
-	
-	//set m_bias to 0.
-	//}
-
-	//IF NOT vehicle:HASKEY("offaxis_thrust") {vehicle:ADD("offaxis_thrust",v(0,0,0)).}
-
 	LOCAL vehlen IS vehicle["stages"]:LENGTH.
 
 	FROM {LOCAL k IS 1.} UNTIL k > (vehlen - 1) STEP { SET k TO k+1.} DO{
@@ -129,23 +115,18 @@ declare function initialise_vehicle{
 			SET stg["engines"]["thrust"] 	TO stg["engines"]["thrust"]*1000.
 		}
 		
-		IF NOT (stg:HASKEY("Throttle")) {stg:ADD("Throttle",1).}
+		IF NOT (stg:HASKEY("Throttle")) {stg:ADD("Throttle", vehicle_initial_thrust_val).}
 	
 		IF NOT (stg:HASKEY("Tstage")) {stg:ADD("Tstage",0).}
-		//stg:ADD("ign_t", 0).
 		
-				
-		//SET stg["m_initial"] TO stg["m_initial"] + m_bias.
-		//SET stg["m_final"] TO stg["m_final"] + m_bias.
-
 		IF NOT stg:HASKEY("mode") {	
 			stg:ADD("mode", 1).	
 		}
 		
-		
 		IF (stg["staging"]["type"]="depletion") {
-			SET stg["Tstage"] TO  const_f_t(stg).
 		
+			SET stg["Tstage"] TO const_f_t(stg).
+			
 		} else {
 			clearscreen.
 			PRINT ("ERROR! VEHICLE IS ONLY ALLOWED TO HAVE DEPLETON-TYPE STAGES") AT (1,5).
@@ -165,8 +146,6 @@ declare function initialise_vehicle{
 	SET control["roll_angle"] TO vehicle["roll"].
 	
 	SET vehicle["ign_t"] TO TIME:SECONDS.
-	
-	SET vehicle["stages"][vehiclestate["cur_stg"]]["Throttle"] TO 0.8.
 	
 	set_staging_trigger().
 	
@@ -199,7 +178,7 @@ FUNCTION get_stage {
 
 
 FUNCTION get_TWR {
-	RETURN vehiclestate["avg_thr"]:average()/(1000*SHIP:MASS*g_body).
+	RETURN vehiclestate["avg_thr"]:average()/(1000*SHIP:MASS*bodygravacc()).
 }
 
 
@@ -331,60 +310,7 @@ FUNCTION getState {
 	
 	IF NOT (vehiclestate["staging_in_progress"]) {
 		
-								 
-		IF (stg["staging"]["type"]="m_burn") {
-		
-			SET stg["m_burn"] TO stg["m_burn"] - deltam.
-			SET stg["m_final"] TO stg["m_initial"] -  stg["m_burn"].
-			
-		} ELSE IF (stg["staging"]["type"]="time") {
-		
-		    	SET stg["Tstage"] TO stg["Tstage"] - deltat.
-				
-		} ELSE IF (stg["staging"]["type"]="glim"){	
-			
-			SET stg["m_final"] TO stg["m_initial"] - res_left.
-			
-			LOCAL y IS glim_t_m(stg).
-			
-			SET stg["Tstage"] TO y[0].
-			SET stg["m_final"] TO y[1].
-			SET stg["m_burn"] TO stg["m_initial"] - y[1].
-			
-			//LOCAL nextstg IS vehicle["stages"][vehiclestate["cur_stg"]+1].
-			//
-			//SET nextstg["m_initial"] TO y[1].
-			//
-			//IF nextstg["mode"]=1 {
-			//	SET nextstg["Tstage"] TO const_f_t(nextstg).
-			//	SET nextstg["m_burn"] TO res_left - stg["m_burn"].
-			//}
-			//ELSE IF nextstg["mode"]=2 {
-			//	
-			//	SET nextstg["m_final"] TO z[1].
-			//	
-			//	LOCAL z IS const_G_t_m(nextstg).
-			//	
-			//	SET nextstg["Tstage"] TO z[0].
-			//	SET nextstg["m_final"] TO z[1].
-			//	SET nextstg["m_final"] TO z[1].
-			//}
-			
-		}  ELSE IF (stg["mode"]=2){
-			//both depletion and minthrot stages
-			
-			SET stg["m_final"] TO stg["m_initial"] - res_left.
-			LOCAL y IS const_G_t_m(stg).
-			SET stg["Tstage"] TO y[0].
-			SET stg["m_final"] TO y[1].
-			SET stg["m_burn"] TO stg["m_initial"] - y[1].
-			
-			//LOCAL nextstg IS vehicle["stages"][vehiclestate["cur_stg"]+1].
-			//
-			//SET nextstg["m_initial"] TO y[1].
-			//SET nextstg["Tstage"] TO const_f_t(nextstg).
-			
-		}ELSE IF (stg["mode"]=1 AND stg["staging"]["type"]="depletion") {
+		IF (stg["mode"]=1 AND stg["staging"]["type"]="depletion") {
 
 			SET stg["m_burn"] TO res_left.
 			SET stg["m_final"] TO stg["m_initial"] -  res_left.
