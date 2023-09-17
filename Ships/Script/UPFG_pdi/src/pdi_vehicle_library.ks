@@ -2,10 +2,10 @@
 
 GLOBAL g0 IS 9.80665. 
 GLOBAL vehicle_pre_staging_t IS 5.
-GLOBAL vehicle_pre_conv_throt IS 0.8.
+GLOBAL vehicle_pre_conv_throt IS 0.75.
 //tilt angle limit from vertical during pitchdown and att hold modes
 gLOBAL vehicle__atthold_anglelim IS 20.
-gLOBAL vehicle_initial_thrust_val IS 0.85.
+gLOBAL vehicle_initial_thrust_val IS 0.75.
 
 
 GLOBAL vehiclestate IS LEXICON(
@@ -317,7 +317,7 @@ FUNCTION getState {
 			SET stg["Tstage"] TO const_f_t(stg).
 			 
 		}
-	}	
+	}		
 }
 
 
