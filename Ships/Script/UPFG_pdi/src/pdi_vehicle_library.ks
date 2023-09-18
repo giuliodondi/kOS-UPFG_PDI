@@ -464,6 +464,7 @@ FUNCTION throttleControl {
 
 FUNCTION pitchover {
 	PARAMETER k0.
+	PARAMETER tgt_h.
 	PARAMETER h0.
 	parameter hdot0.
 	parameter dt.
@@ -476,7 +477,7 @@ FUNCTION pitchover {
 	
 	
 	LOCAL hdot IS SHIP:VERTICALSPEED.
-	LOCAL dh IS ALT:RADAR - h0.
+	LOCAL dh IS tgt_h - h0.
 	
 	//get the vehicle's thrust
 	local stg IS get_stage().

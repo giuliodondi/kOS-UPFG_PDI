@@ -288,6 +288,18 @@ FUNCTION update_landing_state {
 	return ldg_state.
 }
 
+FUNCTION cur_alt_above_target {
+	PARAMETER ldg_state.
+	
+	LOCAL local_datum_alt IS bodyalt(-SHIP:ORBIT:BODY:POSITION).
+	
+	LOCAL tgt_datum_alt IS bodyalt(pos2vec(ldg_state["tgtsite"])).
+	
+	print "local_datum_alt " + local_datum_alt at (2,40).
+	print "tgt_datum_alt " + tgt_datum_alt at (2,41).
+	
+	RETURN local_datum_alt - tgt_datum_alt.
+}
 
 
 //redesignate landing target during P64

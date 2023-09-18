@@ -304,7 +304,9 @@ FUNCTION main_loop {
 			//pitchover mode
 			SET control["roll_angle"] TO 0.
 			
-			IF (ALT:RADAR <= landing_state["altitude"]) {
+			LOCAL tgt_rel_alt IS cur_alt_above_target(landing_state).
+			
+			IF (tgt_rel_alt <= landing_state["altitude"]) {
 				UNLOCK STEERING.
 				SAS ON.
 				SET vehiclestate["ops_mode"] TO 5.
@@ -333,6 +335,7 @@ FUNCTION main_loop {
 		
 			LOCAL out IS pitchover(
 				usc["lastthrot"],
+				tgt_rel_alt,
 				landing_state["altitude"],
 				tgt_rate,
 				deltaT

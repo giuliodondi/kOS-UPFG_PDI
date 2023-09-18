@@ -69,7 +69,7 @@ FUNCTION drawUI {
 	PRINT "|=============================================================|"  AT (0,14).
 	PRINT "|                  SURFACE AND LANDING DATA                   |" AT (0,15).
 	PRINT "|                                                             |" AT (0,16).
-	PRINT "|  RADAR ALT      :               LDG SITE RANGE :            |" AT (0,17).
+	PRINT "|  LDG SITE ALT   :               LDG SITE RANGE :            |" AT (0,17).
 	PRINT "|  VERTICAL SPD   :               HORIZ SPD      :            |" AT (0,18).
 	PRINT "|  SURF PITCH     :               INERT AZIMUTH  :            |" AT (0,19).
 	PRINT "|  CMD DES RATE   :                                           |" AT (0,20).
@@ -145,7 +145,13 @@ FUNCTION dataViz {
 	
 
 	//surface data
-	PRINTPLACE(ROUND(ALT:RADAR, 2) + " m",12,19,surfloc).
+	LOCAL site_alt IS ALT:RADAR.
+	
+	IF (vehiclestate["ops_mode"] < 5) {
+		SET site_alt TO cur_alt_above_target(landing_state).
+	}
+	
+	PRINTPLACE(ROUND(site_alt, 2) + " m",12,19,surfloc).
 	PRINTPLACE(ROUND(SHIP:VERTICALSPEED,1) + " m/s",12,19,surfloc+1).
 	
 	PRINTPLACE(ROUND(downrangedist(landing_state["tgtsite"],SHIP:GEOPOSITION),2) + " km",12,50,surfloc).
