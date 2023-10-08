@@ -86,6 +86,103 @@ FUNCTION glim_stg_time {
 }
 
 
+FUNCTION get_stg_tanks_res {
+
+	//climb the part tree upwards until we find the part with all the resources
+	FUNCTION parts_tree {
+		parameter part0.
+		parameter partlist.
+		parameter resnameslist.
+	
+		LOCAL parentpart IS part0.
+		local breakflag IS FALSE.
+		UNTIL FALSE {
+		
+			LOCAL partresnames IS LIST().
+			FOR partres IN parentpart:RESOURCES {
+				partresnames:ADD(partres:NAME).
+			}
+			
+			LOCAL foundres IS TRUE.
+			FOR resname IN resnameslist {
+				SET foundres TO (foundres AND partresnames:CONTAINS(resname)).
+			}
+			
+			IF foundres OR parentpart=CORE:PART OR parentpart=SHIP:ROOTPART { 
+				BREAK.
+			}
+			
+			SET parentpart TO parentpart:PARENT.
+		}
+		
+		IF NOT partlist:CONTAINS(parentpart) {
+			partlist:ADD( parentpart ).
+		}
+		
+		return partlist.
+	}
+
+
+	PARAMETER stg.
+	
+	local reslex is LEXICON().
+	local tanklist IS LIST().
+	
+	list ENGINES in all_eng.
+	FOR e IN all_eng {
+		IF e:ISTYPE("engine") {
+			IF e:IGNITION {
+				
+				LOCAL eng_res IS e:consumedresources:VALUES.
+				LOCAL eng_res_names IS LIST().
+			
+				FOR res IN eng_res {
+					eng_res_names:ADD(res:name).
+					IF NOT reslex:HASKEY(res:name) {
+						reslex:ADD(res:name, res).
+					}
+				}
+				
+				SET tanklist TO parts_tree(e:PARENT,tanklist,eng_res_names).
+			}
+		}
+	}
+	
+	stg:ADD("resources", reslex).
+	
+	//ignore fuel ducts if already found parts
+	IF tanklist:LENGTH=0 {
+		LOCAL duct_list IS SHIP:PARTSDUBBED("fuelLine").
+		FOR d IN duct_list {
+			SET tanklist TO parts_tree(d:PARENT,tanklist,reslex:KEYS).
+		}
+	}
+	stg:ADD("tankparts", tanklist).	
+	
+}
+
+FUNCTION get_prop_mass {
+	PARAMETER stg.
+	
+	local tanklist is stg["tankparts"].
+	local reslex is stg["resources"].
+	local prop_mass IS 0.
+	
+	FOR tk IN tanklist {
+		FOR tkres In tk:RESOURCES {
+			FOR res IN reslex:VALUES {
+				IF tkres:NAME = res:NAME {
+					set prop_mass TO prop_mass + tkres:amount * res:DENSITY.
+				}
+		
+			}
+		}
+	}
+	
+	set prop_mass to prop_mass*1000.
+    RETURN prop_mass.
+}
+
 //measures current total engine thrust vector and isp of running engines
 
 FUNCTION get_current_thrust_isp {

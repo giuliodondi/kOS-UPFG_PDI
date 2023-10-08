@@ -15,7 +15,7 @@ GLOBAL vehicle IS LEXICON(
 										),
 										"minThrottle",0.101,
 										"engines",	LIST(
-														LEXICON("thrust", 46.7, "isp", 305, "resources",LIST("Aerozine50","MON1"))	//1xLMDE-H
+														LEXICON("thrust", 46.7, "isp", 305)	//1xLMDE-H
 										)					
 								)
 							)

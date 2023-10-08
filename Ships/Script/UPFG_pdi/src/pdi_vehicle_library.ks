@@ -28,21 +28,6 @@ GLOBAL control Is LEXICON(
 
 // taken from the launch script, except we only allow for constant thrust depletion stages
 declare function initialise_vehicle{
-
-	RUNPATH("0:/Libraries/resources_library").	
-
-	
-	FUNCTION add_resource {
-		parameter lexx.
-		parameter reslist.
-		
-		
-		for res in reslist {
-			IF NOT lexx:HASKEY(res) {lexx:ADD(res,0).}
-		}
-		RETURN lexx.
-	}
-	
 	
 	
 	FUNCTION fix_mass_params {
@@ -98,14 +83,8 @@ declare function initialise_vehicle{
 					SET fflow TO fflow + v["thrust"] * 1000 / (v["isp"] * g0).
 				}
 				
-				
-				SET stage_res TO add_resource(stage_res,v["resources"]).
 			}
 			SET stg["engines"] TO LEXICON("thrust", tthrust, "isp", iisspp/tthrust, "flow", fflow).
-			
-			SET stage_res TO res_dens_init(stage_res).
-		
-			stg:ADD("resources",stage_res).
 			
 			fix_mass_params(stg).
 		
@@ -181,98 +160,6 @@ FUNCTION get_TWR {
 	RETURN vehiclestate["avg_thr"]:average()/(1000*SHIP:MASS*bodygravacc()).
 }
 
-
-FUNCTION get_stg_tanks {
-
-	FUNCTION parts_tree {
-		parameter part0.
-		parameter partlist.
-		parameter reslist.
-	
-		
-		
-		//UNTIL FALSE {
-		//	wait 0.
-		//	FOR partres IN parentpart:RESOURCES {
-		//		IF reslist:KEYS:CONTAINS(partres:NAME) { SET breakflag TO TRUE.}
-		//	}
-		//	IF parentpart=CORE:PART { SET breakflag TO TRUE.}
-		//	IF breakflag { BREAK.}
-		//	SET parentpart TO parentpart:PARENT.
-		//}
-		
-		FOR res IN reslist:KEYS {
-			LOCAL  parentpart IS part0.
-			local breakflag IS FALSE.
-			UNTIL FALSE {
-				wait 0.
-				
-				FOR partres IN parentpart:RESOURCES {
-					IF res=partres:NAME { 
-						IF NOT partlist:CONTAINS(parentpart) {partlist:ADD( parentpart ).}
-						SET breakflag TO TRUE.
-					}
-				}
-				
-				
-				IF parentpart=CORE:PART OR parentpart=SHIP:ROOTPART { SET breakflag TO TRUE.}
-				IF breakflag { BREAK.}
-				SET parentpart TO parentpart:PARENT.
-			}
-			
-		}
-		
-		return partlist.
-	}
-
-
-	PARAMETER stg.
-
-	local tanklist IS LIST().
-	local reslist is stg["resources"].
-	
-	list ENGINES in all_eng.
-	LOCAL parentpart IS 0.
-	FOR e IN all_eng {
-		IF e:ISTYPE("engine") {
-			IF e:IGNITION {
-				SET tanklist TO parts_tree(e:PARENT,tanklist,reslist).
-			}
-		}
-	}
-	
-	//ignore fuel ducts if already found parts
-	IF tanklist:LENGTH=0 {
-		LOCAL duct_list IS SHIP:PARTSDUBBED("fuelLine").
-		FOR d IN duct_list {
-			SET tanklist TO parts_tree(d:PARENT,tanklist,reslist).
-		}
-	}
-	stg:ADD("tankparts", tanklist).	
-	
-}
-
-FUNCTION get_prop_mass {
-	PARAMETER stg.
-	
-	local tanklist is stg["tankparts"].
-	local reslist is stg["resources"].
-	local prop_mass IS 0.
-	
-	FOR tk IN tanklist {
-		FOR tkres In tk:RESOURCES {
-			FOR res IN reslist:KEYS {
-				IF tkres:NAME = res {
-					set prop_mass TO prop_mass + tkres:amount*reslist[res].
-				}
-		
-			}
-		}
-	}
-	set prop_mass to prop_mass*1000.
-    RETURN prop_mass.
-}
-
 //measures everything about the current state of the vehicle, including instantaneous thrust
 //thrust only averaged over if staging is not in progress
 FUNCTION getState {
@@ -295,8 +182,6 @@ FUNCTION getState {
 	
 	LOCAL avg_thrust is vehiclestate["avg_thr"]:average().
 	LOCAL avg_isp is x[1].
-
-	IF NOT stg:HASKEY("tankparts") {get_stg_tanks(stg).}
 		
 	LOCAL m_old IS stg["m_initial"].
 
@@ -304,11 +189,11 @@ FUNCTION getState {
 	
 	LOCAL deltam IS m_old - stg["m_initial"].
 	
-	local res_left IS get_prop_mass(stg).
-	
-	SET vehiclestate["m_burn_left"] to res_left.
-	
 	IF NOT (vehiclestate["staging_in_progress"]) {
+	
+		IF NOT stg:HASKEY("tankparts") {get_stg_tanks_res(stg).}
+		local res_left IS get_prop_mass(stg).
+		SET vehiclestate["m_burn_left"] to res_left.
 		
 		IF (stg["mode"]=1 AND stg["staging"]["type"]="depletion") {
 
