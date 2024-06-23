@@ -38,7 +38,7 @@ FUNCTION surfacevel {
 }
 
 //converts position and velocity into vertical speed
-FUNCTION hdot {
+FUNCTION vspd {
 	PARAMETER vel.
 	PARAMETER pos.
 
@@ -109,8 +109,6 @@ FUNCTION shift_pos {
 	LOCAL out IS R(0, BODY:angularvel:mag * dt* constant:RadToDeg, 0)*pos.
 	
 	RETURN vec2pos(out).
-
-
 }
 
 
@@ -255,23 +253,46 @@ FUNCTION vector_pos_bearing {
 }
 
 
+//get a list of runways from the site lexicon, suport for multiple runways per site 
+FUNCTION get_rwylist {
+	PARAMETER sites_lex.
+
+	local rwylist is list().
+	
+	FOR s in sites_lex:KEYS {
+		LOCAL site IS sites_lex[s].
+		
+		IF (site:ISTYPE("LEXICON")) {
+			rwylist:add(site).
+		} ELSE IF (site:ISTYPE("LIST")) {
+			for sr in site {
+				rwylist:add(sr).
+			}
+		}
+	}
+	
+	return rwylist.
+}
+
+
+
 //determine which site is the closest to the current position.
 // takes in a lexicon of sites which are themselves lexicons
 // each must have at least the "position" field defined
 FUNCTION get_closest_site {
 	PARAMETER sites_lex.
+	parameter pos IS SHIP:GEOPOSITION.
 
-	LOCAL pos IS SHIP:GEOPOSITION.
+	local rwylist is get_rwylist(sites_lex).
 
 	LOCAL min_dist IS 0.
 	LOCAL closest_site IS 0.
 	LOCAL closest_site_idx IS 0.
 	LOCAL k IS 0.
 
-	FOR s in sites_lex:KEYS {
+	FOR rw in rwylist {
 		
-		LOCAL site IS sites_lex[s].
-		LOCAL sitepos IS site["position"].
+		LOCAL sitepos IS rw["position"].
 		
 		LOCAL sitedist IS downrangedist(pos,sitepos).
 
@@ -288,7 +309,48 @@ FUNCTION get_closest_site {
 		}
 		SET k TO k + 1.
 	}
+	
+	
 	RETURN LIST(closest_site_idx,closest_site).
+}
+
+
+function get_sites_downrange {
+	parameter sites_lex.
+	parameter posvec.
+	parameter dwnrng_dir.
+	parameter min_range is 0.		//km
+	parameter max_range is 25000.		//km
+	
+	local downrange_sites is list().
+	local normv is vcrs(posvec, dwnrng_dir):normalized.
+	
+	FOR s in ldgsiteslex:KEYS {
+		
+		LOCAL site IS ldgsiteslex[s].
+		
+		local rwypos is 0.
+		
+		IF (site:ISTYPE("LEXICON")) {
+			set rwypos to site["position"].
+		} ELSE IF (site:ISTYPE("LIST")) {
+			set rwypos to site[0]["position"].
+		}
+	
+		LOCAL sitevec IS pos2vec(rwypos).
+		
+		local siteang is signed_angle(posvec, sitevec, normv, 0).
+		
+		if (siteang > 0) {
+			LOCAL sitedist IS greatcircledist(posvec,sitevec).
+			
+			if (sitedist > min_range) and (sitedist < max_range) {
+				downrange_sites:add(s).
+			}
+		}
+	}
+	
+	return downrange_sites.
 }
 
 
@@ -323,6 +385,50 @@ FUNCTION get_orbit_azimuth {
 
 
 //ORBITAL MECHANICS FUNCTIONS
+
+// compute all the keplerian orbital elements given the state vector in KSP frame 
+function state_vector_orb_elems {
+	parameter posvec.
+	parameter velvec.
+	
+	LOCAL rad_vel IS VDOT(velvec, posvec:NORMALIZEd).
+	
+	LOCAL horiz_vel IS SQRT(velvec:MAG ^ 2 - rad_vel ^ 2 ).
+	
+	LOCAL ang_mom_vec IS - VCRS(posvec, velvec).	//left-handed
+	
+	LOCAL incl IS ARCCOS(limitarg(ang_mom_vec:Y / ang_mom_vec:MAG)).
+	
+	LOCAL north_pole_vec IS V(0, 1, 0).
+	
+	LOCAL nodevec IS - VCRS(north_pole_vec, ang_mom_vec):NORMALIZED.
+	
+	LOCAL lan_ IS signed_angle(SOLARPRIMEVECTOR, nodevec, north_pole_vec, 1).
+	
+	LOCAL ecc_vec IS - VCRS(velvec, ang_mom_vec) / BODY:MU - posvec:NORMALIZED.
+	LOCAL ecc_ IS ecc_vec:MAG.
+	
+	LOCAL periarg IS signed_angle(ecc_vec, nodevec, ang_mom_vec, 1).
+	
+	LOCAL eta_ IS signed_angle(posvec, ecc_vec, ang_mom_vec, 1).
+	
+	LOCAL sma_ IS 1/(2/posvec:MAG - velvec:MAG^2/BODY:MU).
+	
+	LOCAL ap IS (sma_*(1 + ecc_) - BODY:RADIUS)/1000.
+	LOCAL pe IS (sma_*(1 - ecc_) - BODY:RADIUS)/1000.
+	
+	RETURN LEXICON(
+			"ap", ap,
+			"pe", pe,
+			"sma", sma_,
+			"ecc", ecc_,
+			"incl", incl,
+			"lan", lan_,
+			"periarg", periarg,
+			"eta", eta_
+	).
+
+}
 
 // compute sma given ap and pe in kilometres
 FUNCTION orbit_appe_sma {
@@ -418,6 +524,18 @@ function orbit_alt_eta {
 	
 	RETURN ARCCOS(limitarg(eta_)).
 }
+
+//calculates fpa at altitude
+//altitude must be measured from the body centre
+function orbit_alt_fpa {
+	parameter h.
+	parameter sma.
+	parameter ecc.
+	
+	LOCAL eta_ IS orbit_alt_eta(h, sma, ecc).
+
+	RETURN orbit_eta_fpa(eta_, sma, ecc).
+}
 	
 //calculates fpa at given eta
 function orbit_eta_fpa {
@@ -442,7 +560,14 @@ FUNCTION orbit_eta_alt {
 
 }
 
+// calculates circular orbital velocity at altitude 
+//altitude must be measured from the body centre
+FUNCTION orbit_alt_vsat {
+	parameter h.
+	
+	RETURN SQRT( BODY:MU / h ).
 
+}
 
 //VEHICLE-SPECIFIC FUNCTIONS
 
@@ -500,9 +625,11 @@ FUNCTION get_pitch {
 
 //get current vehicle roll angle wrt local horizontal and vertical
 FUNCTION get_roll_lvlh {
+	parameter facingdir is SHIP:FACING.
+
 	LOCAL topvec IS -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
-	LOCAL horiz_facing IS VXCL(topvec,SHIP:FACING:FOREVECTOR:NORMALIZED):NORMALIZED.
-	LOCAL shiptopvec IS VXCL(horiz_facing,SHIP:FACING:TOPVECTOR:NORMALIZED):NORMALIZED.
+	LOCAL horiz_facing IS VXCL(topvec,facingdir:FOREVECTOR:NORMALIZED):NORMALIZED.
+	LOCAL shiptopvec IS VXCL(horiz_facing,facingdir:TOPVECTOR:NORMALIZED):NORMALIZED.
 	
 	RETURN signed_angle(shiptopvec,topvec,horiz_facing,0).
 }
@@ -510,8 +637,11 @@ FUNCTION get_roll_lvlh {
 
 //get current vehicle pitch angle wrt local horizontal and vertical
 FUNCTION get_pitch_lvlh {
+	parameter facingdir is SHIP:FACING.
+
+	local facingvec is facingdir:FOREVECTOR:NORMALIZED.
+
 	LOCAL topvec IS -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
-	LOCAL facingvec IS SHIP:FACING:FOREVECTOR:NORMALIZED.
 	LOCAL horiz_facing IS VXCL(topvec,facingvec):NORMALIZED.
 	LOCAL sidevec IS VCRS(horiz_facing,topvec).
 	RETURN signed_angle(
@@ -522,17 +652,46 @@ FUNCTION get_pitch_lvlh {
 	).
 }
 
-//returns the current flight path angle with respect to the local horizontal
-function get_fpa {
-	parameter vec.
-	PARAMETER geopos.
+function get_az_lvlh {
+	parameter facingdir is SHIP:FACING.
+
+	local facingvec is facingdir:FOREVECTOR:NORMALIZED.
 	
-	LOCAL upvec IS pos2vec(geopos):NORMALIZED.
-	LOCAL velproj IS VXCL(upvec,vec).
+	LOCAL topvec IS -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
 	
-	LOCAL rightvec IS -VCRS(velproj,vec):NORMALIZED.
+	local northvec is vxcl(topvec, v(0,1,0)).
+	LOCAL horiz_facing IS VXCL(topvec,facingvec):NORMALIZED.
 	
-	RETURN signed_angle(velproj:NORMALIZED,vec:NORMALIZED,rightvec,0).
+	RETURN signed_angle(
+						northvec,
+						horiz_facing,
+						topvec,
+						1
+	).
+}
+
+//returns the current surface flight path angle with respect to the local horizontal
+function get_surf_fpa {
+	LOCAL surfv IS SHIP:srfprograde:vector.
+	
+	LOCAL upvec IS -SHIP:ORBIT:BODY:POSITION.
+	
+	return get_fpa(upvec, surfv).
+}
+
+//calculate generic fpa 
+FUNCTION get_fpa {
+	PARAMETER pos.
+	parameter vel.
+	
+	LOCAL pos_norm IS pos:NORMALIZED.
+	
+	LOCAL vel_h IS VXCL(pos_norm,vel).
+	
+	LOCAL v_rad IS VDOT(vel, pos_norm).
+	
+	RETURN ARCTAN2(v_rad, vel_h:MAG).
+	
 }
 
 //returns the vehicle azimuth angle, north is 0 and east is 90

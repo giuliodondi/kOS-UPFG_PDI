@@ -36,49 +36,20 @@ FUNCTION PRINTPLACE{
 
 
 //log handler function, takes a lexicon as imput
-//creates a log file, deleting the file by the same name if it exists
+//if the flag "initialise" is passed:
+//creates a log file, moving the file by the same name if it exists
 //then creates the column headers by dumping the lexicon keys
-//if the log file has already been created just logs the lexicon to file
+//else it just dumps the data
 FUNCTION log_data {
-	
-	//logs to a file specified by filename the values of a lexicon log_lex
-	FUNCTION dataLog {
-		DECLARE PARAMETER filename.
-		PARAMETER log_lex.
-		
-		LOCAL str IS "".
-		
-		//append to the string the numbers in sequence separated by four spaces
-		FOR val IN log_lex:VALUES {
-			SET str TO str + val + ",".
-		}
-
-		LOG str TO filename.
-	}
-
 	PARAMETER log_lex.
-	PARAMETER logname_string IS "".
-	PARAMETER overwrite IS FALSE.
+	PARAMETER logname_string.
+	PARAMETER initialise IS FALSE.
 	
-	if not (defined logname) {
+	LOCAL logfilename IS logname_string  + ".csv".
 	
-		IF overwrite {
-			GLOBAL logname is logname_string  + ".csv".
-			IF EXISTS(logname)=TRUE {
-				MOVEPATH(logname,logname_string + "_old" + ".csv").
-			}
-		} ELSE {
-			local logcount is 0.
-			GLOBAL logname is logname_string + "_" + logcount + ".csv".
-			until false {
-				set logname to logname_string + "_" + logcount + ".csv".
-				IF EXISTS(logname)=TRUE {
-					set logcount to logcount + 1.
-				}
-				ELSE {break.}
-				
-				
-			}
+	if (initialise) {
+		IF EXISTS(logfilename) {
+			MOVEPATH(logfilename,logname_string + "_old" + ".csv").
 		}
 		
 		LOCAL titlestr IS "".
@@ -87,11 +58,61 @@ FUNCTION log_data {
 			SET titlestr TO titlestr + key + ",".
 		}
 		
-		log titlestr to logname.
+		log titlestr to logfilename.
+	} else {
+		LOCAL str IS "".
+		
+		//append to the string the numbers in sequence separated by four spaces
+		FOR val IN log_lex:VALUES {
+			SET str TO str + val + ",".
+		}
+		
+		str:remove(str:length - 1, 1).
 
-	} ELSE { 	
-		dataLog(logname,log_lex).
+		LOG str TO logfilename.
 	}
+	
+	//keep for legacy but it's buggy
+	//if logfileslist:CONTAINS(logfilename) {
+	//	
+	//	LOCAL str IS "".
+	//	
+	//	//append to the string the numbers in sequence separated by four spaces
+	//	FOR val IN log_lex:VALUES {
+	//		SET str TO str + val + ",".
+	//	}
+	//	
+	//	str:remove(str:length - 1, 1).
+	//
+	//	LOG str TO logfilename.
+	//
+	//} ELSE { 
+	//	IF overwrite {
+	//		IF EXISTS(logfilename) {
+	//			MOVEPATH(logfilename,logname_string + "_old" + ".csv").
+	//		}
+	//	} ELSE {
+	//		local logcount is 0.
+	//		set logfilename to logname_string + "_" + logcount + ".csv".
+	//		until false {
+	//			set logfilename to logname_string + "_" + logcount + ".csv".
+	//			IF EXISTS(logfilename) {
+	//				set logcount to logcount + 1.
+	//			}
+	//			ELSE {break.}
+	//		}
+	//	}
+	//	
+	//	LOCAL titlestr IS "".
+	//	
+	//	FOR key IN log_lex:KEYS {
+	//		SET titlestr TO titlestr + key + ",".
+	//	}
+	//	
+	//	log titlestr to logfilename.
+	//	
+	//	logfileslist:add(logfilename).
+	//}
 }
 
 
@@ -103,8 +124,8 @@ FUNCTION arrow {
 	PARAMETER vec.
 	PARAMETER lab.
 	PARAMETER vec_centre IS v(0,0,0).
-	PARAMETER scl IS 10.
-	PARAMETER wdh IS 0.5.
+	PARAMETER scl IS 2.2.
+	PARAMETER wdh IS 0.2.
 	
 	VECDRAW(
       vec_centre,
@@ -123,13 +144,33 @@ FUNCTION arrow_body {
 	PARAMETER vec.
 	PARAMETER lab.
 	PARAMETER scl IS 2.2.
-	PARAMETER wdh IS 0.5.
+	PARAMETER wdh IS 0.2.
 	
 	LOCAL v_ IS vec:NORMALIZED*BODY:RADIUS.
 	
 	VECDRAW(
       SHIP:ORBIT:BODY:POSITION,
       v_,
+      RGB(1,0,0),
+      lab,
+      scl,
+      TRUE,
+      wdh/scl
+    ).
+
+}
+
+//draw a vector  with label, centered on a position around the body and scaled to 2.2x radius
+FUNCTION arrow_bodyvec {
+	PARAMETER vec.
+	PARAMETER lab.
+	PARAMETER bodyvec_origin.
+	PARAMETER scl IS 2.2.
+	PARAMETER wdh IS 0.2.
+	
+	VECDRAW(
+      SHIP:ORBIT:BODY:POSITION + scl*bodyvec_origin,
+      vec,
       RGB(1,0,0),
       lab,
       scl,
@@ -503,6 +544,39 @@ FUNCTION loop_executor_factory {
 }
 
 
+//timer object 
+FUNCTION timer_factory {
+	LOCAL this IS LEXICON().
+	
+	this:add("start_t", 0).
+	this:add("last_sampled_t", 0).
+	
+	this:add("last_dt", 0).
+	this:add("update_ticks", 0).
+	this:add("elapsed", 0).
+	
+	this:add("reset", {
+		set this:start_t tO TIME:SECONDS.
+		set this:last_sampled_t tO this:start_t.
+		set this:last_dt tO 0.
+		set this:update_ticks tO 0.
+		set this:elapsed tO 0.
+	}).
+	
+	this:add("update", {
+		local last_t is this:last_sampled_t.
+		set this:last_sampled_t to TIME:SECONDS.
+		set this:last_dt to this:last_sampled_t - last_t.
+		set this:elapsed to this:last_sampled_t - this:start_t.
+		set this:update_ticks to this:update_ticks + 1.
+	}).
+	
+	this:reset().
+	
+	return this.
+}
+
+
 //given a lapse of time to wait, manages ksp warp
 FUNCTION warp_controller {
 	PARAMETER time_span.
@@ -513,13 +587,13 @@ FUNCTION warp_controller {
 	
 	LOCAL new_warp IS cur_warp.
 	
-	IF time_span > (3600 + final_wait) {
+	IF time_span > (5000 + final_wait) {
 		set new_warp to 4.
 	}
-	ELSE IF time_span > (400 + final_wait) {
+	ELSE IF time_span > (500 + final_wait) {
 		set new_warp to 3.
 	}
-	ELSE IF time_span > (60 + final_wait) {
+	ELSE IF time_span > (90 + final_wait) {
 		set new_warp to 2.
 	}
 	ELSE IF time_span > final_wait {

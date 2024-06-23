@@ -6,25 +6,53 @@ GLOBAL g0 IS 9.80665.
 
 // stg parameters needs to be compatible with the upfg vehicle struct 
 
+//calculates final mass of a constant thrust stage burning for a specific time 
+FUNCTION const_f_dt_mfinal {
+	PARAMETER stg.
+	
+	LOCAL red_flow IS stg["engines"]["flow"] * stg["throttle"].
+	
+	RETURN stg["m_initial"] - red_flow * stg["Tstage"].
+}
+
 //calculates burn time for a constant thrust stage 
 FUNCTION const_f_t {
 	PARAMETER stg.
 
 	LOCAL red_flow IS stg["engines"]["flow"] * stg["throttle"].
+	IF (red_flow = 0) {
+		RETURN 0.
+	}
 	RETURN stg["m_burn"]/red_flow.	
 }
 
 
 //calculates when the g limit will be violated and the vehicle mass at that moment
-//returns (0,0) if the g-lim is never reached
+//returns (-1,-1) if the g-lim is never reached
 FUNCTION glim_t_m {
 	PARAMETER stg.
 	local out is LIST(0,0).
 	
 	local mbreak is stg["engines"]["thrust"] * stg["Throttle"]/(stg["glim"]*g0).
-	IF mbreak > stg["m_final"]  {
+	LOCAL red_flow IS stg["engines"]["flow"] * stg["throttle"].
+	
+	IF (red_flow <= 0) {
+		//no running engines
+		SET out[0] TO -1.
+		SET out[1] TO stg["m_initial"].
+	} else if (mbreak >= stg["m_initial"]) {
+		//if the stage is fully beyond the limit 
+		SET out[0] TO -1.
+		SET out[1] TO stg["m_final"].
+		
+	} else if (mbreak > stg["m_final"])  {
+		//g-limit is reached
 		SET out[1] TO mbreak.
-		SET out[0] TO (stg["m_initial"] - mbreak)/(stg["engines"]["flow"] * stg["Throttle"]).
+		SET out[0] TO (stg["m_initial"] - mbreak)/red_flow.
+	} else {
+		//g-limit is never reached 
+		SET out[0] TO -1.
+		SET out[1] TO -1.
 	}
 	
 	RETURN out.
@@ -36,15 +64,16 @@ FUNCTION const_G_t_m {
 	local out is LIST(0,0).
 	
 	//calculate mass of the vehicle at throttle violation 
-	LOCAL mviol IS stg["engines"]["thrust"] * stg["minThrottle"]/( stg["glim"] * g0 ).
+	LOCAL mviol IS stg["engines"]["thrust"] * stg["engines"]["minThrottle"]/( stg["glim"] * g0 ).
 	
 	//initialise final mass to stage final mass
 	LOCAL m_final IS stg["m_final"].
 	
 	IF mviol > m_final  {
-		SET out[1] TO mviol.
 		SET m_final TO mviol.
 	}
+	
+	SET out[1] TO m_final.
 	
 	local red_isp is stg["engines"]["isp"]/stg["glim"].
 		
@@ -68,19 +97,21 @@ FUNCTION glim_stg_time {
 	LOCAL maxtime IS (stg_lex["engines"]["isp"]/glim) * LN(1 + stg_lex["m_burn"]/stg_lex["m_final"] ).
 
 	//compute burn time until  we reach minimum throttle.	
-	LOCAL limtime IS - stg_lex["engines"]["isp"]/glim * LN(stg_lex["minThrottle"]).
+	LOCAL limtime IS - stg_lex["engines"]["isp"]/glim * LN(stg_lex["engines"]["minThrottle"]).
 	LOCAL constThrustTime IS 0.
 	IF limtime < maxtime {
 		//	First we calculate mass of the fuel burned until violation
 		LOCAL burnedFuel IS stg_lex["m_initial"]*(1 - CONSTANT:E^(-glim*limtime/stg_lex["engines"]["isp"])).
 		//	Then, time it will take to burn the rest on constant minimum throttle
-		SET constThrustTime TO (stg_lex["m_burn"] - burnedFuel  )/(stg_lex["minThrottle"]*stg_lex["engines"]["flow"]).
+		LOCAL minflow IS stg_lex["engines"]["minThrottle"]*stg_lex["engines"]["flow"].
+		IF (minflow > 0) {
+			SET constThrustTime TO (stg_lex["m_burn"] - burnedFuel  )/minflow.
+		}
 		SET tt TO limtime + constThrustTime.
 	}
 	ELSE {
 		SET tt TO maxtime.
 	}
-	SET stg_lex["throt_mult"] TO glim*g0/stg_lex["engines"]["thrust"].
 	
 	RETURN tt.								
 }
@@ -128,24 +159,18 @@ FUNCTION get_stg_tanks_res {
 	local reslex is LEXICON().
 	local tanklist IS LIST().
 	
-	list ENGINES in all_eng.
-	FOR e IN all_eng {
-		IF e:ISTYPE("engine") {
-			IF e:IGNITION {
-				
-				LOCAL eng_res IS e:consumedresources:VALUES.
-				LOCAL eng_res_names IS LIST().
-			
-				FOR res IN eng_res {
-					eng_res_names:ADD(res:name).
-					IF NOT reslex:HASKEY(res:name) {
-						reslex:ADD(res:name, res).
-					}
-				}
-				
-				SET tanklist TO parts_tree(e:PARENT,tanklist,eng_res_names).
+	FOR e in get_running_engines() {		
+		LOCAL eng_res IS e:consumedresources:VALUES.
+		LOCAL eng_res_names IS LIST().
+	
+		FOR res IN eng_res {
+			eng_res_names:ADD(res:name).
+			IF NOT reslex:HASKEY(res:name) {
+				reslex:ADD(res:name, res).
 			}
 		}
+		
+		SET tanklist TO parts_tree(e:PARENT,tanklist,eng_res_names).
 	}
 	
 	stg:ADD("resources", reslex).
@@ -183,6 +208,44 @@ FUNCTION get_prop_mass {
     RETURN prop_mass.
 }
 
+
+FUNCTION get_running_engines {
+	LOCAL running_eng_list Is LIST().
+	
+	LIST ENGINES IN all_eng.
+	FOR e IN all_eng {
+		IF e:ISTYPE("engine") {
+			IF e:IGNITION {
+				running_eng_list:ADD(e).
+			}
+		}
+	}	
+	
+	RETURN running_eng_list.
+}
+
+FUNCTION shutdown_running_engines {
+	FOR e IN get_running_engines() {
+		e:SHUTDOWN.
+	}
+}
+
+FUNCTION shutdown_all_engines {
+	LIST ENGINES IN all_eng.
+	FOR e IN all_eng {
+		e:shutdown.
+	}	
+}
+
+FUNCTION engine_flameout {
+
+	local eng_flameout is true.
+	FOR e_ IN get_running_engines() {
+		set eng_flameout to (eng_flameout and (e_:FLAMEOUT)).
+	}
+	RETURN eng_flameout.
+}
+
 //measures current total engine thrust vector and isp of running engines
 
 FUNCTION get_current_thrust_isp {
@@ -191,16 +254,11 @@ FUNCTION get_current_thrust_isp {
 	LOCAL thr IS 0.
 	LOCAL isp_ IS 0.
 	
-	list ENGINES in all_eng.
-	FOR e IN all_eng {
-		IF e:ISTYPE("engine") {
-			IF e:IGNITION {
-				LOCAL e_thr IS (e:THRUST * 1000).
-				SET thr TO thr + e_thr.
-				SET isp_ TO isp_ + e:ISP*e_thr.
-				set thrvec to thrvec -e:POSITION:NORMALIZED*e_thr.
-			}
-		}
+	FOR e IN get_running_engines() {
+		LOCAL e_thr IS (e:THRUST * 1000).
+		SET thr TO thr + e_thr.
+		SET isp_ TO isp_ + e:ISP*e_thr.
+		set thrvec to thrvec -e:POSITION:NORMALIZED*e_thr.
 	}	
 	
 	if (thr=0) {
@@ -220,16 +278,11 @@ FUNCTION get_max_thrust_isp{
 	LOCAL thr IS 0.
 	LOCAL isp_ IS 0.
 	
-	list ENGINES in all_eng.
-	FOR e IN all_eng {
-		IF e:ISTYPE("engine") {
-			IF e:IGNITION {
-				LOCAL e_thr IS (e:MAXTHRUSTAT(0) * 1000).
-				SET thr TO thr + e_thr.
-				SET isp_ TO isp_ + e:ISPAT(0)*e_thr.
-				set thrvec to thrvec -e:POSITION:NORMALIZED*e_thr.
-			}
-		}
+	FOR e in get_running_engines() {
+		LOCAL e_thr IS (e:MAXTHRUSTAT(0) * 1000).
+		SET thr TO thr + e_thr.
+		SET isp_ TO isp_ + e:ISPAT(0)*e_thr.
+		set thrvec to thrvec -e:POSITION:NORMALIZED*e_thr.
 	}	
 	
 	if (thr=0) {
@@ -277,22 +330,17 @@ FUNCTION thrustrot {
 	local offs is v(0,0,0).
 	LOCAL thr is 0.
 	
-	list ENGINES in all_eng.
-	FOR e IN all_eng {
-		IF e:ISTYPE("engine") {
-			IF e:IGNITION {
-				LOCAL e_thr IS e:MAXTHRUST.
-				
-				IF (running_thrust) {
-					SET e_thr TO e:THRUST.
-				}
-				
-				SET thr TO thr + e_thr.
-				//set x to x + 1.
-				local vel is -e:POSITION:NORMALIZED*e_thr.
-				set offs to offs + vel.
-			}
+	FOR e in get_running_engines() {
+		LOCAL e_thr IS e:MAXTHRUST.
+		
+		IF (running_thrust) {
+			SET e_thr TO e:THRUST.
 		}
+		
+		SET thr TO thr + e_thr.
+		//set x to x + 1.
+		local vel is -e:POSITION:NORMALIZED*e_thr.
+		set offs to offs + vel.
 	}	
 	set thrvec to (offs/thr):NORMALIZED .
 	local ship_fore IS SHIP:FACING:VECTOR:NORMALIZED.
@@ -332,13 +380,19 @@ FUNCTION aimAndRoll {
 //converts between absolute throttle value (percentage of max thrust)
 //and throttle percentage relative to the range min-max which KSP uses
 FUNCTION throtteValueConverter {
-	PARAMETER abs_throt.
+	PARAMETER throt_val.
 	PARAMETER minthrot IS 0.
+	PARAMETER inverse is FALSE.
 
-	RETURN CLAMP((abs_throt - minthrot)/(1 - minthrot),0.005,1).
+	if (inverse) {
+		RETURN CLAMP(minthrot + (1 - minthrot) * throt_val, 0, 1).
+	} else {
+		RETURN CLAMP((throt_val - minthrot)/(1 - minthrot), 0.005, 1).
+	}
 }
 
 //given current vehicle fore vector, computes where the thrust is pointing
 FUNCTION thrust_vec {
-	RETURN SHIP:FACING:VECTOR:NORMALIZED - thrustrot(SHIP:FACING:FOREVECTOR,SHIP:FACING:TOPVECTOR).
+	PARAMETER running_thrust is TRUE.
+	RETURN SHIP:FACING:VECTOR:NORMALIZED - thrustrot(SHIP:FACING:FOREVECTOR,SHIP:FACING:TOPVECTOR, running_thrust).
 }
