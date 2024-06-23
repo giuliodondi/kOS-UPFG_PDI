@@ -2,7 +2,7 @@
 GLOBAL guitextwhite IS RGB(227/255,227/255,227/255).
 
 GLOBAL target_editor_gui_width IS 300.
-GLOBAL target_editor_gui_height IS 320.
+GLOBAL target_editor_gui_height IS 330.
 
 
 FUNCTION make_target_editor_gui {
@@ -108,6 +108,7 @@ FUNCTION make_target_editor_gui {
 		set_gui_boxes().
 	}.
 	
+	target_editor_gui:addspacing(7).
 	
 	
 	GLOBAL all_box IS target_editor_gui:ADDVLAYOUT().
@@ -118,12 +119,16 @@ FUNCTION make_target_editor_gui {
 	SET sitedata_textlabel:STYLE:ALIGN TO "center".
 	set sitedata_textlabel:style:margin:v to 5.
 	
+	target_editor_gui:addspacing(7).
+	
 	GLOBAL site_databox IS all_box:ADDVBOX().
 	SET site_databox:STYLE:ALIGN TO "center".
 	SET site_databox:STYLE:WIDTH TO 230.
-    SET site_databox:STYLE:HEIGHT TO 140.
+    SET site_databox:STYLE:HEIGHT TO 130.
 	set site_databox:style:margin:h to 28.
 	set site_databox:style:margin:v to 0.
+	
+	site_databox:addspacing(7).
 	
 	GLOBAL site_name_box IS site_databox:addhlayout().
 	SET site_name_box:STYLE:ALIGN TO "center".
@@ -175,6 +180,14 @@ FUNCTION make_target_editor_gui {
 	
 	GLOBAL site_elev_text2 IS site_elev_box:addlabel("xxx").
 	set site_elev_text2:style:width to 50.
+	
+	GLOBAL save_sitesb is target_editor_gui:ADDBUTTON("SAVE ALL SITES").
+	SET save_sitesb:STYLE:WIDTH TO 100.
+	SET save_sitesb:STYLE:HEIGHT TO 25.
+
+	set save_sitesb:onclick to {
+		save_sites_to_file().
+	}.
 	
 	set_gui_boxes().
 	
@@ -233,6 +246,50 @@ function make_site_from_gui {
 				"position",tgt_body:GEOPOSITIONLATLNG(newlat, newlng)
 	).
 } 
+
+function save_sites_to_file {
+
+	local fname is "0:/UPFG_pdi/moon_sites.ks".
+	
+	IF EXISTS(fname) {DELETEPATH(fname).}
+	
+	LOG "IF (DEFINED moonsiteslex) {UNSET moonsiteslex.}" TO fname.
+	LOG "GLOBAL moonsiteslex IS LEXICON(" TO fname.
+	
+	local sites_list is moonsiteslex:values.
+	
+	local counter is 1.
+	for site in sites_list {
+	
+		local spacing_str is CHAR(9) + CHAR(9).
+		
+		log spacing_str + CHAR(34) +  site["name"] + CHAR(34) +  ", LEXICON(" to fname.
+		
+		local name_str is CHAR(34) + site["name"] +  CHAR(34).
+		
+		log spacing_str + spacing_str + CHAR(34) + "name" + CHAR(34) + "," + name_str + ","  to fname.
+		
+		local sitepos is site["position"].
+		
+		local pos_str is "LATLNG(" + sitepos:lat + "," + sitepos:lng + ")".
+		
+		log spacing_str + spacing_str + CHAR(34) + "position" + CHAR(34) + "," + pos_str   to fname.
+		
+		local closing_str is ")".
+		
+		if (counter < sites_list:length) {
+			set closing_str to closing_str + ",".
+		}
+		
+		log spacing_str + closing_str to fname.
+		
+		set counter to counter + 1.
+		
+	}
+	
+	LOG ")." TO fname.
+
+}
 
 
 
