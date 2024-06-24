@@ -1,5 +1,5 @@
-IF (DEFINED moonsiteslex) {UNSET moonsiteslex.}
-GLOBAL moonsiteslex IS LEXICON(
+IF (DEFINED pdi_siteslex) {UNSET pdi_siteslex.}
+GLOBAL pdi_siteslex IS LEXICON(
 		"Apollo 11", LEXICON(
 				"name","Apollo 11",
 				"position",LATLNG(0.6814,23.4597)
