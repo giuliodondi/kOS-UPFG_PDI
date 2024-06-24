@@ -2,7 +2,8 @@
 GLOBAL guitextwhite IS RGB(227/255,227/255,227/255).
 
 GLOBAL target_editor_gui_width IS 300.
-GLOBAL target_editor_gui_height IS 330.
+GLOBAL target_editor_globalbox_width IS 230.
+GLOBAL target_editor_gui_height IS 320.
 
 
 FUNCTION make_target_editor_gui {
@@ -19,7 +20,7 @@ FUNCTION make_target_editor_gui {
 	
 	// Add widgets to the GUI
 	GLOBAL title_box is target_editor_gui:addhbox().
-	set title_box:style:height to 60. 
+	set title_box:style:height to 35. 
 	set title_box:style:margin:top to 0.
 
 
@@ -39,15 +40,18 @@ FUNCTION make_target_editor_gui {
 	SET quitb:ONCLICK TO quitcheck@.
 	
 	
-	GLOBAL togglesbox IS target_editor_gui:ADDVLAYOUT().
-	SET togglesbox:STYLE:WIDTH TO 200.	
-	SET togglesbox:STYLE:HEIGHT TO 60.	
-	SET togglesbox:STYLE:margin:h TO 50.	
+	GLOBAL global_box IS target_editor_gui:ADDVLAYOUT().
+	SET global_box:STYLE:WIDTH TO target_editor_globalbox_width.	
+	SET global_box:STYLE:HEIGHT TO 280.
+	SET global_box:STYLE:ALIGN TO "center".	
+	set global_box:style:margin:h to 35.
 
-	GLOBAL select_sitebox IS togglesbox:ADDHLAYOUT().
+	GLOBAL select_sitebox IS global_box:ADDHLAYOUT().
+	SET select_sitebox:STYLE:WIDTH TO target_editor_globalbox_width.
+	
 	GLOBAL site_label IS select_sitebox:ADDLABEL("<size=15>Site : </size>").
 	GLOBAL select_site IS select_sitebox:addpopupmenu().
-	SET select_site:STYLE:WIDTH TO 120.
+	SET select_site:STYLE:WIDTH TO 155.
 	SET select_site:STYLE:HEIGHT TO 25.
 	SET select_site:STYLE:ALIGN TO "center".
 	update_sites_menu().
@@ -57,23 +61,27 @@ FUNCTION make_target_editor_gui {
 		PARAMETER lex_key.	
 		
 		if (moonsiteslex:haskey(lex_key)) {
-			set tgtsite to moonsiteslex[lex_key].
+			set tgtsite to copy_site(moonsiteslex[lex_key]).
 		} else {
-			set tgtsite to get_default_moonsite().
+			set tgtsite to get_default_site().
 		}
 		
 		set_gui_boxes().
 	}.
 	
-	GLOBAL buttons_box IS togglesbox:ADDHLAYOUT().
+	GLOBAL buttons_box IS global_box:ADDHLAYOUT().
+	SET buttons_box:STYLE:WIDTH TO target_editor_globalbox_width.
+	SET addsiteb:STYLE:HEIGHT TO 60.
+	
+	buttons_box:addspacing(72).
 	
 	GLOBAL addsiteb is buttons_box:ADDBUTTON("ADD NEW").
-	SET addsiteb:STYLE:WIDTH TO 55.
+	SET addsiteb:STYLE:WIDTH TO 80.
 	SET addsiteb:STYLE:HEIGHT TO 25.
 	
 	set addsiteb:onclick to {
 	
-		local newsite is make_site_from_gui().
+		local newsite is copy_site(tgtsite).
 		
 		if (moonsiteslex:haskey(newsite["name"])) {
 			set moonsiteslex[newsite["name"]] to newsite.
@@ -92,7 +100,7 @@ FUNCTION make_target_editor_gui {
 	
 	
 	GLOBAL deletesiteb is buttons_box:ADDBUTTON("DELETE").
-	SET deletesiteb:STYLE:WIDTH TO 55.
+	SET deletesiteb:STYLE:WIDTH TO 70.
 	SET deletesiteb:STYLE:HEIGHT TO 25.
 
 	set deletesiteb:onclick to {
@@ -108,24 +116,25 @@ FUNCTION make_target_editor_gui {
 		set_gui_boxes().
 	}.
 	
-	target_editor_gui:addspacing(7).
+	global_box:addspacing(7).
 	
+	GLOBAL site_datatitlebox IS global_box:ADDVLAYOUT().
+	SET site_datatitlebox:STYLE:ALIGN TO "center".
+	SET site_datatitlebox:STYLE:WIDTH TO target_editor_globalbox_width.
+    SET site_datatitlebox:STYLE:HEIGHT TO 35.
+	set site_datatitlebox:style:margin:h to 0.
+	set site_datatitlebox:style:margin:v to 0.
 	
-	GLOBAL all_box IS target_editor_gui:ADDVLAYOUT().
-	SET all_box:STYLE:WIDTH TO target_editor_gui_width.
-	SET all_box:STYLE:HEIGHT TO 160.
-	
-	GLOBAL sitedata_textlabel IS all_box:ADDLABEL("<b>Site Data</b>").	
+	GLOBAL sitedata_textlabel IS site_datatitlebox:ADDLABEL("<b>Site Data</b>").	
+	SET sitedata_textlabel:STYLE:WIDTH TO target_editor_globalbox_width.
 	SET sitedata_textlabel:STYLE:ALIGN TO "center".
 	set sitedata_textlabel:style:margin:v to 5.
 	
-	target_editor_gui:addspacing(7).
-	
-	GLOBAL site_databox IS all_box:ADDVBOX().
+	GLOBAL site_databox IS global_box:ADDVBOX().
 	SET site_databox:STYLE:ALIGN TO "center".
-	SET site_databox:STYLE:WIDTH TO 230.
+	SET site_databox:STYLE:WIDTH TO target_editor_globalbox_width.
     SET site_databox:STYLE:HEIGHT TO 130.
-	set site_databox:style:margin:h to 28.
+	set site_databox:style:margin:h to 0.
 	set site_databox:style:margin:v to 0.
 	
 	site_databox:addspacing(7).
@@ -181,8 +190,17 @@ FUNCTION make_target_editor_gui {
 	GLOBAL site_elev_text2 IS site_elev_box:addlabel("xxx").
 	set site_elev_text2:style:width to 50.
 	
-	GLOBAL save_sitesb is target_editor_gui:ADDBUTTON("SAVE ALL SITES").
-	SET save_sitesb:STYLE:WIDTH TO 100.
+	
+	
+	
+	GLOBAL save_sitesb_box IS global_box:addhlayout().
+	SET save_sitesb_box:STYLE:WIDTH TO target_editor_globalbox_width.
+	SET save_sitesb_box:STYLE:ALIGN TO "left".
+	
+	save_sitesb_box:addspacing(72).
+	
+	GLOBAL save_sitesb is save_sitesb_box:ADDBUTTON("SAVE ALL SITES").
+	SET save_sitesb:STYLE:WIDTH TO 155.
 	SET save_sitesb:STYLE:HEIGHT TO 25.
 
 	set save_sitesb:onclick to {
@@ -233,17 +251,12 @@ function get_default_site {
 	).
 } 
 
-function make_site_from_gui {
-	local newname is tgtsite["name"].
-	
-	local sitepos is tgtsite["position"].
-	
-	local newlat is sitepos:lat.
-	local newlng is sitepos:lng.
+function copy_site {
+	parameter sitelex.
 
 	return LEXICON(
-				"name", newname,
-				"position",tgt_body:GEOPOSITIONLATLNG(newlat, newlng)
+				"name", sitelex["name"],
+				"position",tgt_body:GEOPOSITIONLATLNG(sitelex["position"]:lat, sitelex["position"]:lng)
 	).
 } 
 

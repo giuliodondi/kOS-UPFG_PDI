@@ -32,10 +32,7 @@ function pdi_target_editor_main {
 		
 		update_target_editor_gui().
 		
-		print moonsiteslex.
-		
 		WAIT 0.3.
-
 	}
 }
 
