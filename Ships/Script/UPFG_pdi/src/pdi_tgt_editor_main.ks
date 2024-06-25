@@ -49,11 +49,7 @@ function fix_sites_body_position {
 	
 		local s is pdi_siteslex[key_].
 		
-		local sp is s["position"].
-		
-		local body_pos is tgt_body:GEOPOSITIONLATLNG(sp:LAT, sp:LNG).
-		
-		set pdi_siteslex[key_] to LEXICON("name", key_, "position", body_pos).
+		set pdi_siteslex[key_] to LEXICON("name", key_, "position", fix_site_position_body(s["position"], tgt_body)).
 	}
 }
 

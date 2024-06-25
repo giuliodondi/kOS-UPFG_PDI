@@ -302,7 +302,7 @@ function save_sites_to_file {
 		
 		local sitepos is site["position"].
 		
-		local pos_str is "LATLNG(" + sitepos:lat + "," + sitepos:lng + ")".
+		local pos_str is "BODY(" + CHAR(34) + tgt_body:NAME + CHAR(34)+ "):GEOPOSITIONLATLNG(" + sitepos:lat + "," + sitepos:lng + ")".
 		
 		log spacing_str + spacing_str + CHAR(34) + "position" + CHAR(34) + "," + pos_str   to sites_fname.
 		
