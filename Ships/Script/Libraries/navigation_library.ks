@@ -926,3 +926,74 @@ function fix_site_position_body {
 	
 	return body_:GEOPOSITIONLATLNG(pos:LAT, pos:LNG).
 }
+
+function rotate_moon_posvec {
+	parameter moonpos_.
+	parameter delta_t.
+	parameter moon_polevec is body_orbital_normal_vec(BODY("earth")).
+	
+	return rodrigues(moonpos_, moon_polevec, body_orbital_angular_vel(BODY("moon"))*delta_t).
+}
+
+
+//given a target site and the earth-moon system
+//calculate the immediate tli opportunities and return the relative angle
+//of the estimated lunar orbit to the target site
+function tli_planner_site {
+	parameter timestamp_.
+	parameter moon_posvec.
+	parameter moon_orbit_normv.
+	parameter moon_tgt_sitev.
+	parameter tli_parking_incl.
+	
+	local moon_antipode is -moon_posvec.
+	local earth_polevec is v(0,1,0).
+	
+	local antipode_proj is vxcl(earth_polevec, moon_antipode).
+	local antipode_norm is vcrs(antipode_proj, earth_polevec):normalized.
+
+	local antipode_lat is signed_angle(antipode_proj, moon_antipode, antipode_norm, 0).
+	local tli_norm_rota is 90 - get_a_bBB(antipode_lat, tli_parking_incl).
+	local moon_normal_rota is signed_angle(antipode_proj, vxcl(earth_polevec, moon_orbit_normv), earth_polevec, 0). 
+	
+	
+	local tli_norm_0 is rodrigues(earth_polevec, antipode_norm, sign(antipode_lat) * tli_parking_incl).
+
+	local tli_norm_high is rodrigues(tli_norm_0, earth_polevec, -sign(moon_normal_rota) * tli_norm_rota).
+	local tli_norm_low is rodrigues(tli_norm_0, earth_polevec, sign(moon_normal_rota) * tli_norm_rota).
+	
+	local moon_antipode_normv is vcrs(moon_antipode, moon_orbit_normv):normalized.
+	local tli_norm_high_lunarsoi is tli_norm_high - 2*vdot(tli_norm_high, moon_antipode_normv)*moon_antipode_normv.
+	local tli_norm_low_lunarsoi is tli_norm_low - 2*vdot(tli_norm_low, moon_antipode_normv)*moon_antipode_normv.
+
+	local siteproj_high is vxcl(tli_norm_high_lunarsoi, moon_tgt_sitev).
+	local siteproj_low is vxcl(tli_norm_low_lunarsoi, moon_tgt_sitev).
+
+	//clearvecdraws().
+	//arrow_body(-moon_orbit_normv, "norm").
+	//arrow_body(-moon_posvec, "moon").
+	//arrow_body(tli_norm_high_lunarsoi, "tli_norm_high").
+	//arrow_body(tli_norm_low_lunarsoi, "tli_norm_low").
+	//
+	//arrow_body(moon_tgt_sitev, "site").
+	//arrow_body(siteproj_high, "site_proj_high").
+	//arrow_body(siteproj_low, "site_proj_low").
+	//
+	//wait 10.
+
+	return list(
+				lexicon(
+						"time", timestamp_,
+						"normal", tli_norm_high,
+						"orbit_angle", "high",
+						"site_angle", vang(moon_tgt_sitev, siteproj_high)
+				),
+				lexicon(
+						"time", timestamp_,
+						"normal", tli_norm_low,
+						"orbit_angle", "low",
+						"site_angle", vang(moon_tgt_sitev, siteproj_low)
+				)
+	).
+
+}

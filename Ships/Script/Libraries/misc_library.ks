@@ -422,14 +422,151 @@ declare function sectotime_simple {
 	
 }
 
+//takes a timestamp and formats the date in gregorian calendar form
+//only works for RSS realistic calendar
+function format_calendar {
+	parameter time_.
+	
+	function get_month_list {
+		parameter year_no.
+		
+		local months is list(0).
+		
+		months:add(
+				lexicon(
+					"month", "January",
+					"length_d", 31
+			)
+		).
+		
+		local leap_year is (mod(year_no, 4)=0) and (mod(year_no, 100)=0) and (mod(year_no, 400)>0).
+		
+		if (leap_year) {
+			months:add(
+					lexicon(
+						"month", "February",
+						"length_d", 29
+				)
+			).
+		} else {
+			months:add(
+					lexicon(
+						"month", "February",
+						"length_d", 28
+				)
+			).
+		}
+		
+		months:add(
+				lexicon(
+					"month", "March",
+					"length_d", 31
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "April",
+					"length_d", 30
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "May",
+					"length_d", 31
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "June",
+					"length_d", 30
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "July",
+					"length_d", 31
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "August",
+					"length_d", 31
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "September",
+					"length_d", 30
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "October",
+					"length_d", 31
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "November",
+					"length_d", 30
+			)
+		).
+		
+		months:add(
+				lexicon(
+					"month", "December",
+					"length_d", 31
+			)
+		).
+	
+		return months.
+	}
+	
+	local calndr is time_:calendar.
+	
+	local year_ is 1950 + time_:year.
+	
+	local month_list is get_month_list(year_).
+	
+	local month_c is 1.
+	local month_str is "".
+	
+	local dayc is time_:day.
+	
+	until false {
+	
+		local month_ is month_list[month_c].
+	
+		if (dayc <= month_["length_d"]) {
+			set month_str to month_["month"].
+			break.
+		}
+	
+		set dayc to dayc - month_["length_d"].
+		set month_c to month_c + 1.
+	}
+	
+	return month_str + " " + dayc + " " + year_.
+
+}
+
+function random_int_range {
+	parameter range_.
+	return FLOOR(range_*RANDOM()).
+}
 
 //select a random element from a list
 FUNCTION select_rand{
 	PARAMETER lst.
-	
-	LOCAL len IS lst:LENGTH.
-	
-	RETURN lst[FLOOR(len*RANDOM())].
+	RETURN lst[random_int_range(lst:LENGTH)].
 }
 
 
