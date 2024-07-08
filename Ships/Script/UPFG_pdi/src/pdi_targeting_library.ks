@@ -10,6 +10,20 @@ GLOBAL current_orbit IS LEXICON (
 								"periarg",ORBIT:ARGUMENTOFPERIAPSIS
 ).
 
+GLOBAL landing_state IS LEXICON(
+						"body", tgt_body,
+						"tgtsite_name", "",
+						"tgtsite", LATLNG(0, 0),
+						"altitude",100,
+						"velocity",1,
+						"angle",-90,
+						"altitude_bias", 0,
+						"range_bias",1500,
+						"velocity_bias",0,
+						"tgt_redesig_t",100,
+						"final_apch_t",45	
+).
+
 
 GLOBAL surfacestate IS  LEXICON("MET",0,"az",0,"pitch",0,"alt",0,"vs",0,"hs",0,"vdir",0,"hdir",0,"q",0).
 GLOBAL orbitstate IS  LEXICON("radius",0,"velocity",0). 

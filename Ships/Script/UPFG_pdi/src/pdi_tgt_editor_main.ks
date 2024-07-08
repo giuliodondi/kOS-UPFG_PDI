@@ -26,9 +26,6 @@ clearscreen.
 
 function pdi_target_editor_main {
 
-	GLOBAL quit_program IS FALSE.
-
-
 	until false {
 		clearscreen.
 		if (quit_program) {

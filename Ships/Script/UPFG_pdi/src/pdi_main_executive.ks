@@ -1,4 +1,6 @@
-function init{
+@LAZYGLOBAL OFF.
+
+function pdi_main_exec {
 	CLEARSCREEN.
 	clearvecdraws().
 	
@@ -18,6 +20,14 @@ function init{
 	RUNPATH("0:/UPFG_pdi/src/pdi_targeting_library").
 	RUNPATH("0:/UPFG_pdi/src/pdi_upfg_library").
 	RUNPATH("0:/UPFG_pdi/src/pdi_vehicle_library").
+	
+	initialise_sites_file().
+	
+	GLOBAL log_data Is false.
+
+	GLOBAL debug Is false.
+	
+	make_main_pdi_gui().
 	
 	//	Load vessel file
 	IF (vesselfilename:ENDSWITH(".ks")=TRUE) {
@@ -43,11 +53,11 @@ function init{
 	//and prevent events from triggering before PDI
 	set vehicle["stages"][1]["ign_t"] to TIME:SECONDS + 100000.
 	
-	main_loop().
+	pdi_main_loop().
 }
 
 
-FUNCTION main_loop {
+FUNCTION pdi_main_loop {
 
 	//to bypass iteration time of UPFG during pre-convergence
 	SET vehiclestate["staging_in_progress"] TO TRUE.
@@ -414,4 +424,4 @@ FUNCTION main_loop {
 
 
 
-init().
+pdi_main_exec().

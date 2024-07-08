@@ -6,6 +6,11 @@ GLOBAL target_editor_globalbox_width IS 230.
 GLOBAL target_editor_gui_height IS 320.
 
 
+GLOBAL quit_program IS FALSE.
+
+
+//		TARGET EDITOR GUI
+
 FUNCTION make_target_editor_gui {
 	//create the GUI.
 	GLOBAL target_editor_gui is gui(target_editor_gui_width,target_editor_gui_height).
@@ -321,6 +326,168 @@ function save_sites_to_file {
 	LOG ")." TO sites_fname.
 
 }
+
+
+//			POWERED DESCENT GUI
+
+GLOBAL main_pdi_gui_width IS 550.
+GLOBAL main_pdi_gui_height IS 555.
+
+FUNCTION make_main_pdi_gui {
+	
+
+	//create the GUI.
+	GLOBAL main_pdi_gui is gui(main_pdi_gui_width,main_pdi_gui_height).
+	SET main_pdi_gui:X TO 185.
+	SET main_pdi_gui:Y TO 640.
+	SET main_pdi_gui:STYLe:WIDTH TO main_pdi_gui_width.
+	SET main_pdi_gui:STYLe:HEIGHT TO main_pdi_gui_height.
+	SET main_pdi_gui:STYLE:ALIGN TO "center".
+	SET main_pdi_gui:STYLE:HSTRETCH  TO TRUE.
+
+	set main_pdi_gui:skin:LABEL:TEXTCOLOR to guitextwhite.
+	
+	// Add widgets to the GUI
+	GLOBAL title_box is main_pdi_gui:addhbox().
+	set title_box:style:height to 35. 
+	set title_box:style:margin:top to 0.
+
+
+	GLOBAL text0 IS title_box:ADDLABEL("<b><size=20>POWERED DESCENT LANDING GUIDANCE</size></b>").
+	SET text0:STYLE:ALIGN TO "center".
+
+	GLOBAL minb IS  title_box:ADDBUTTON("-").
+	set minb:style:margin:h to 7.
+	set minb:style:margin:v to 7.
+	set minb:style:width to 20.
+	set minb:style:height to 20.
+	set minb:TOGGLE to TRUE.
+	function minimizecheck {
+		PARAMETER pressed.
+		
+		IF pressed {
+			main_pdi_gui:SHOWONLY(title_box).
+			SET main_pdi_gui:STYLe:HEIGHT TO 50.
+		} ELSE {
+			SET main_pdi_gui:STYLe:HEIGHT TO main_pdi_gui_height.
+			for w in main_pdi_gui:WIDGETS {
+				w:SHOW().
+			}
+		}
+		
+	}
+	SET minb:ONTOGGLE TO minimizecheck@.
+
+	GLOBAL quitb IS  title_box:ADDBUTTON("X").
+	set quitb:style:margin:h to 7.
+	set quitb:style:margin:v to 7.
+	set quitb:style:width to 20.
+	set quitb:style:height to 20.
+	function quitcheck {
+	  SET quit_program TO TRUE.
+	}
+	SET quitb:ONCLICK TO quitcheck@.
+
+	
+	main_pdi_gui:addspacing(3).
+	
+	GLOBAL popup_box IS main_pdi_gui:ADDHLAYOUT().
+	SET popup_box:STYLE:WIDTH TO main_pdi_gui_width - 16.
+	SET popup_box:STYLE:ALIGN TO "center".	
+	
+	popup_box:addspacing(10).
+
+	GLOBAL select_tgtbox IS popup_box:ADDHLAYOUT().
+	SET select_tgtbox:STYLE:WIDTH TO 175.
+	GLOBAL tgt_label IS select_tgtbox:ADDLABEL("<size=15>Target : </size>").
+	GLOBAL select_tgt IS select_tgtbox:addpopupmenu().
+	SET select_tgt:STYLE:WIDTH TO 110.
+	SET select_tgt:STYLE:HEIGHT TO 25.
+	SET select_tgt:STYLE:ALIGN TO "center".
+	FOR site IN pdi_siteslex:KEYS {
+		select_tgt:addoption(site).
+	}		
+	
+	set select_tgt:index to -1.
+	
+	SET select_tgt:ONCHANGE to {
+		PARAMETER lex_key.
+		
+		LOCAL pdisite IS pdi_siteslex[lex_key].
+		
+		set landing_state["tgtsite"] to pdisite["position"].
+		set landing_state["tgtsite_name"] to pdisite["name"].
+		set landing_state["body"] to pdisite["position"]:body.
+		
+	}.
+	
+	set select_tgt:index to 0.
+		
+	popup_box:addspacing(15).	
+	
+	GLOBAL logb IS  popup_box:ADDCHECKBOX("Log Data",false).
+	
+	SET logb:ONTOGGLE to {
+		PARAMETER activated.
+		
+		IF (activated) {
+			//set loglex TO LEXICON(
+			//                  
+			//).
+			//log_data(loglex,"0:/UPFG_pdi/LOGS/pdi_log", TRUE).
+	
+		} ELSE {
+			set loglex TO LEXICON().
+		}
+	}.
+	
+	//more stuff??
+	
+	main_pdi_gui:addspacing(3).
+	
+	GLOBAL pdi_main_display IS main_pdi_gui:addvlayout().
+	SET pdi_main_display:STYLE:WIDTH TO main_pdi_gui_width - 22.
+	SET pdi_main_display:STYLE:HEIGHT TO 382.
+	SET pdi_main_display:STYLE:ALIGN TO "center".
+	set pdi_main_display:style:margin:h to 11.
+	
+	set pdi_main_display:style:BG to "UPFG_pdi/src/gui_images/pdi_disp_bg.png".
+	
+	
+	GLOBAL pdi_main_display_titlebox IS pdi_main_display:ADDHLAYOUT().
+	SET pdi_main_display_titlebox:STYLe:WIDTH TO pdi_main_display:STYLE:WIDTH.
+	SET pdi_main_display_titlebox:STYLe:HEIGHT TO 1.
+	GLOBAL pdi_main_display_title IS pdi_main_display_titlebox:ADDLABEL("DISPLAY TITLE 1").
+	SET pdi_main_display_title:STYLE:ALIGN TO "center".
+	
+	GLOBAL pdi_main_display_clockbox IS pdi_main_display:ADDHLAYOUT().
+	SET pdi_main_display_clockbox:STYLe:WIDTH TO pdi_main_display:STYLE:WIDTH.
+	SET pdi_main_display_clockbox:STYLe:HEIGHT TO 1.
+	GLOBAL pdi_main_display_clock IS pdi_main_display_clockbox:ADDLABEL("MET 00:00:00:00").
+	SET pdi_main_display_clock:STYLE:ALIGN TO "right".
+	SET pdi_main_display_clock:STYLE:margin:h to 20.
+	
+	GLOBAL pdi_disp IS pdi_main_display:addvlayout().
+	SET pdi_disp:STYLE:WIDTH TO pdi_main_display:STYLE:WIDTH.
+	SET pdi_disp:STYLE:HEIGHT TO pdi_main_display:STYLE:HEIGHT - 2.
+	SET pdi_disp:STYLE:ALIGN TO "center".
+	
+	main_pdi_gui:addspacing(3).
+	
+	GLOBAL pdi_msg_scroll_box IS main_pdi_gui:addvlayout().
+	SET pdi_msg_scroll_box:STYLE:WIDTH TO main_pdi_gui_width - 16.
+	SET pdi_msg_scroll_box:STYLE:HEIGHT TO 80.
+	SET pdi_msg_scroll_box:STYLE:ALIGN TO "center".
+	
+	global pdi_msgscroll is pdi_msg_scroll_box:addscrollbox().
+	set pdi_msgscroll:valways to true.
+	set pdi_msgscroll:style:margin:h to 0.
+	set pdi_msgscroll:style:margin:v to 0.
+
+	main_pdi_gui:SHOW().
+	
+}
+
 
 
 
