@@ -1,4 +1,12 @@
 @LAZYGLOBAL OFF.
+CLEARSCREEN.
+SET CONFIG:IPU TO 1200.	
+global debug_mode is false.
+global dap_debug is false.
+
+GLOBAL log_data Is false.
+
+	GLOBAL debug Is false.
 
 function pdi_main_exec {
 	CLEARSCREEN.
@@ -15,6 +23,7 @@ function pdi_main_exec {
 	RUNPATH("0:/Libraries/maths_library").	
 	RUNPATH("0:/Libraries/navigation_library").	
 	RUNPATH("0:/Libraries/vehicle_library").	
+	RUNPATH("0:/Libraries/aerosim_library").	
 	
 	RUNPATH("0:/UPFG_pdi/src/pdi_interface_library").
 	RUNPATH("0:/UPFG_pdi/src/pdi_targeting_library").
@@ -22,10 +31,6 @@ function pdi_main_exec {
 	RUNPATH("0:/UPFG_pdi/src/pdi_vehicle_library").
 	
 	initialise_sites_file().
-	
-	GLOBAL log_data Is false.
-
-	GLOBAL debug Is false.
 	
 	make_main_pdi_gui().
 	
