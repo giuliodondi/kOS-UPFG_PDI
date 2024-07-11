@@ -2,10 +2,10 @@
 
 GLOBAL g0 IS 9.80665. 
 GLOBAL vehicle_pre_staging_t IS 5.
-GLOBAL vehicle_pre_conv_throt IS 0.75.
+GLOBAL vehicle_pre_conv_throt IS 0.8.
+GLOBAL vehicle_constg_initial_throt IS 0.35.
 //tilt angle limit from vertical during pitchdown and att hold modes
 gLOBAL vehicle__atthold_anglelim IS 20.
-gLOBAL vehicle_initial_thrust_val IS 0.75.
 
 
 GLOBAL vehiclestate IS LEXICON(
@@ -24,6 +24,40 @@ GLOBAL control Is LEXICON(
 	"refvec", v(0,0,0)
 ).
 
+//instead of reading the vehicle config from file, build it at runtime
+function setup_vehicle {
+	
+	GLOBAL vehicle IS LEXICON().
+	
+	vehicle:add("roll", 0).
+	
+	local full_englex is get_running_englex().
+	
+	local englex is LEXICON(
+				"thrust", full_englex["thrust"], 
+				"isp", full_englex["isp"], 
+				"flow",full_englex["flow"],
+				"minThrottle", full_englex["minThrottle"]
+	).
+	
+	local stg1_m_initial is SHIP:mass.
+	
+	local stageslex is LIST(0).
+	
+	local stg1 is LEXICON(
+			"m_initial",stg1_m_initial,
+			"m_final",	0,
+			"staging", LEXICON (
+				"type","time",
+				"ignition",	TRUE,
+				"ullage", "none",
+				"ullage_t",	0	
+			),
+			"Tstage",600,		//placeholer 10 minutes
+			"engines",	LIST(englex)					
+	)
+
+}
 
 
 // taken from the launch script, except we only allow for constant thrust depletion stages
@@ -59,6 +93,7 @@ declare function initialise_vehicle{
 		}
 	}
 	
+	
 	LOCAL vehlen IS vehicle["stages"]:LENGTH.
 
 	FROM {LOCAL k IS 1.} UNTIL k > (vehlen - 1) STEP { SET k TO k+1.} DO{
@@ -68,8 +103,9 @@ declare function initialise_vehicle{
 	
 		LOCAL iisspp IS 0.
 		LOCAL tthrust IS 0.
+		LOCAL minthrust IS 0.
+		local can_throttle IS FALSE.
 		LOCAL fflow IS 0.
-		local stage_res IS LEXICON().
 		
 		IF (stg["engines"]:ISTYPE("LIST")) {
 			//trigger that we should do the initial stage parsing 
@@ -83,8 +119,19 @@ declare function initialise_vehicle{
 					SET fflow TO fflow + v["thrust"] * 1000 / (v["isp"] * g0).
 				}
 				
+				IF (v:HASKEY("minThrust")) {
+					SET can_throttle TO TRUE.
+					SET minthrust TO minthrust + v["minThrust"].
+				} else {
+					SET minthrust TO minthrust + v["thrust"].
+				}
 			}
+			
 			SET stg["engines"] TO LEXICON("thrust", tthrust, "isp", iisspp/tthrust, "flow", fflow).
+			
+			if (can_throttle) {
+				stg["engines"]:ADD("minThrottle", minthrust/tthrust).
+			}
 			
 			fix_mass_params(stg).
 		
@@ -94,7 +141,7 @@ declare function initialise_vehicle{
 			SET stg["engines"]["thrust"] 	TO stg["engines"]["thrust"]*1000.
 		}
 		
-		IF NOT (stg:HASKEY("Throttle")) {stg:ADD("Throttle", vehicle_initial_thrust_val).}
+		IF NOT (stg:HASKEY("Throttle")) {stg:ADD("Throttle", vehicle_pre_conv_throt).}
 	
 		IF NOT (stg:HASKEY("Tstage")) {stg:ADD("Tstage",0).}
 		
@@ -150,6 +197,7 @@ FUNCTION debug_vehicle {
 
 
 									//VEHICLE PERFORMANCE & STAGING FUNCTIONS
+
 
 FUNCTION get_stage {
 	RETURN vehicle["stages"][vehiclestate["cur_stg"]].

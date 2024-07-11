@@ -246,6 +246,59 @@ FUNCTION engine_flameout {
 	RETURN eng_flameout.
 }
 
+//lexicon measured from running engines 	
+function get_running_englex {
+	
+	LOCAL englex IS LEXICON(
+		"active",0,
+		"isp",0,
+		"thrust",0,
+		"flow",0,
+		"minThrottle",0,
+		"resources",0
+	).
+	
+	local running_eng is get_running_engines().
+	
+	if (running_eng:length = 0) {
+		PRINT ("ERROR! NO RUNNING ENGINES!") AT (1,5).
+		LOCAL X IS 1/0.
+	}
+	
+	LOCAL eng_reslex IS LEXICON().
+	
+	for e_ in running_eng {
+		LOCAL eng_thr IS e_:POSSIBLETHRUSTAT(0.0).
+		LOCAL eng_isp IS e_:VACUUMISP.
+		LOCAL eng_flow IS e_:MAXMASSFLOW*1000.
+		LOCAL eng_minthr IS e_:MINTHROTTLE.
+		LOCAL eng_res IS e_:consumedresources:VALUES.
+		
+		SET englex["active"] TO englex["active"] + 1.
+		
+		SET englex["thrust"] TO englex["thrust"] + eng_thr.
+		SET englex["isp"] TO englex["isp"] + eng_isp*eng_thr.
+		SET englex["flow"] TO englex["flow"] + eng_flow.
+		SET englex["minThrottle"] TO englex["minThrottle"] + eng_minthr*eng_thr.
+		
+		FOR res IN eng_res {
+			IF NOT eng_reslex:HASKEY(res:name) {
+				eng_reslex:ADD(res:name, res).
+			}
+		}
+	}
+	
+	SET englex["isp"] TO englex["isp"]/englex["thrust"].
+	SET englex["minThrottle"] TO englex["minThrottle"]/englex["thrust"].
+	
+	SET englex["thrust"] TO englex["thrust"].
+	SET englex["flow"] TO englex["flow"].
+	
+	SET englex["resources"] TO eng_reslex.
+	
+	RETURN englex.
+}
+
 //measures current total engine thrust vector and isp of running engines
 
 FUNCTION get_current_thrust_isp {

@@ -191,22 +191,6 @@ FUNCTION calculate_veh_state_at_pdi {
 }
 
 
-FUNCTION warp_to_pdi{
-
-	parameter pdi_time.
-	
-	LOCAL t2pdi IS pdi_time - TIME:SECONDS.
-
-		
-	IF t2pdi > 3600 or t2pdi < -60    {set warp to 4.}
-	ELSE IF t2pdi > 1000     {set warp to 3.}
-	ELSE IF t2pdi > 180     {set warp to 2.}
-	ELSE IF t2pdi > 35  {set warp to 1.}
-	ELSE IF t2pdi > 27  {set warp to 0.}						
-}
-
-
-
 
 
 
