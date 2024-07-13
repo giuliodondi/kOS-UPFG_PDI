@@ -202,7 +202,10 @@ FUNCTION calculate_veh_state_at_pdi {
 
 FUNCTION update_navigation {
 	
-	SET surfacestate["MET"] TO TIME:SECONDS. 
+	local t_prev is surfacestate["time"].
+	SET surfacestate["time"] TO TIME:SECONDS.
+	set surfacestate["deltat"] to surfacestate["time"] - t_prev.
+	SET surfacestate["MET"] TO surfacestate["time"] - vehicle["ign_t"]. 
 	
 	
 	//measure position and orbit parameters
@@ -219,6 +222,7 @@ FUNCTION update_navigation {
 	SET surfacestate["alt"] TO SHIP:ALTITUDE.
 	SET surfacestate["vs"] TO SHIP:VERTICALSPEED.
 	SET surfacestate["hs"] TO SHIP:VELOCITY:SURFACE:MAG.
+	set surfacestate["q"] to SHIP:Q.
 	
 	SET orbitstate["velocity"] TO vecYZ(SHIP:ORBIT:VELOCITY:ORBIT).
 	SET orbitstate["radius"] TO vecYZ(SHIP:ORBIT:BODY:POSITION)*-1.

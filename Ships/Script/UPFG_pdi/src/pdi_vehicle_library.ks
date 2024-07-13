@@ -2,6 +2,8 @@
 
 GLOBAL g0 IS 9.80665. 
 GLOBAL vehicle_pre_staging_t IS 5.
+GLOBAL vehicle_const_f_dt IS 600.
+GLOBAL vehicle_const_a_glim IS 0.5.	//has to be in earth gs even around the moon
 GLOBAL vehicle_pre_conv_throt IS 0.8.
 GLOBAL vehicle_constg_initial_throt IS 0.35.
 //tilt angle limit from vertical during pitchdown and att hold modes
@@ -25,7 +27,7 @@ GLOBAL control Is LEXICON(
 ).
 
 //instead of reading the vehicle config from file, build it at runtime
-function setup_vehicle {
+function setup_standard_vehicle {
 	
 	GLOBAL vehicle IS LEXICON().
 	
@@ -47,16 +49,57 @@ function setup_vehicle {
 	local stg1 is LEXICON(
 			"m_initial",stg1_m_initial,
 			"m_final",	0,
+			"m_burn",0
 			"staging", LEXICON (
 				"type","time",
 				"ignition",	TRUE,
 				"ullage", "none",
 				"ullage_t",	0	
 			),
-			"Tstage",600,		//placeholer 10 minutes
+			"mode", 1,
+			"throttle", vehicle_pre_conv_throt,
+			"Tstage",vehicle_const_f_dt,
 			"engines",	LIST(englex)					
-	)
+	).
+	
+	set stg1["m_final"] to const_f_dt_mfinal(stg1).
+	set stg1["m_burn"] to stg1["m_initial"] - stg1["m_final"].
+	
+	IF NOT stg1:HASKEY("tankparts") {get_stg_tanks_res(stg1).}
+	
+	local res_left IS get_prop_mass(stg1).	
+	set res_left to res_left - stg1["m_burn"].
+	
+	local stg2 is LEXICON(
+			"m_initial",stg1["m_final"],
+			"m_final",	0,
+			"m_burn",0
+			"staging", LEXICON (
+				"type","depletion",
+				"ignition",	FALSE,
+				"ullage", "none",
+				"ullage_t",	0	
+			),
+			"mode", 2,
+			"glim", vehicle_const_a_glim,
+			"throttle", vehicle_pre_conv_throt,
+			"Tstage",0,
+			"engines",	LIST(englex)	,
+			"tankparts", stg1["tankparts"]		
+	).
+	
+	SET stg2["m_final"] TO stg2["m_initial"] - res_left.
+	LOCAL y IS const_G_t_m(stg2).
+	SET stg2["Tstage"] TO y[0].
+	SET stg2["m_final"] TO y[1].
+	SET stg2["m_burn"] TO stg2["m_initial"] - y[1].
+	
+	stageslex:add(stg1).
+	stageslex:add(stg2).
+	
+	vehicle:add("stages", stageslex).
 
+	//debug_vehicle().
 }
 
 
@@ -149,14 +192,62 @@ declare function initialise_vehicle{
 			stg:ADD("mode", 1).	
 		}
 		
-		IF (stg["staging"]["type"]="depletion") {
-		
-			SET stg["Tstage"] TO const_f_t(stg).
+		IF stg["staging"]["type"]="time" {
+			SET stg["Tstage"] TO stg["Tstage"].
 			
-		} else {
-			clearscreen.
-			PRINT ("ERROR! VEHICLE IS ONLY ALLOWED TO HAVE DEPLETON-TYPE STAGES") AT (1,5).
-			LOCAL X IS 1/0.
+			
+		} ELSE IF (stg["staging"]["type"]="depletion") {
+		
+			IF (stg["mode"] = 1) {
+				//regular constant thrust depletion stage 
+				SET stg["Tstage"] TO  const_f_t(stg).
+			} ELSE IF (stg["mode"] = 2) {
+				//g-limited stage, figure out if we need to add a minimum constant throttle depletion stage
+				
+				LOCAL y IS const_G_t_m(stg).
+				SET stg["Tstage"] TO y[0].
+				
+				LOCAL newstg_m_initial IS y[1].
+				LOCAL newstg_m_final IS stg["m_final"].
+				
+				//only add a new stage if it burns for at least 3 seconds 
+				LOCAL min_newstg_m_initial IS newstg_m_final + 3 * stg["engines"]["minThrottle"] * stg["engines"]["flow"].
+				
+				//print "newstg_m_initial " + newstg_m_initial/1000 at (0,29).
+				//print "min_newstg_m_initial " + min_newstg_m_initial/1000 at (0,30).
+				//print "newstg_m_final " + newstg_m_final/1000 at (0,31).
+				
+				IF (newstg_m_initial > min_newstg_m_initial) {
+					
+					SET stg["m_final"] TO newstg_m_initial.
+					SET stg["m_burn"] TO stg["m_initial"] - newstg_m_initial.
+					SET stg["staging"]["type"] TO "minthrot".
+					SET stg["staging"]["stg_action"] TO {}.
+					
+					//create the new stage 
+					
+					LOCAL new_stg  IS LEXICON(
+												"m_initial",	newstg_m_initial,
+												"m_final",	newstg_m_final,
+												"m_burn", newstg_m_initial - newstg_m_final,
+												"staging", LEXICON (
+															"stg_action",{},
+															"type","depletion",
+															"ignition",	FALSE,
+															"ullage", "none",
+															"ullage_t",	0
+												),
+												"engines",	stg["engines"],
+												"Tstage",0,
+												"mode", 1,
+												"glim",stg["glim"],
+												"Throttle",stg["engines"]["minThrottle"]
+										).
+										
+					vehicle["stages"]:INSERT(k+1, new_stg).
+					SET vehlen TO vehicle["stages"]:LENGTH.
+				}
+			}
 		}
 		
 		
@@ -182,13 +273,22 @@ declare function initialise_vehicle{
 
 
 FUNCTION debug_vehicle {
+	
+	dump_vehicle().
+	
+	until false{
+		print "vehicle debug, press crtl-c to quit" at (0,2).
+		wait 0.1.
+	}
+}
+
+
+FUNCTION dump_vehicle {
 	IF EXISTS("0:/vehicledump.txt") {
 		DELETEPATH("0:/vehicledump.txt").
 	}
 	
 	log vehicle:dump() to "0:/vehicledump.txt".
-	
-	until false{wait 0.1.}
 }
 
 
@@ -211,12 +311,10 @@ FUNCTION get_TWR {
 //measures everything about the current state of the vehicle, including instantaneous thrust
 //thrust only averaged over if staging is not in progress
 FUNCTION getState {
-
-	LOCAL deltat IS surfacestate["MET"].
 	
 	update_navigation().
 	
-	SET deltat TO surfacestate["MET"] - deltat.
+	IF DEFINED events {	events_handler().}
 	
 	//measure and compute vehicle performance parameters
 	
@@ -242,15 +340,47 @@ FUNCTION getState {
 		IF NOT stg:HASKEY("tankparts") {get_stg_tanks_res(stg).}
 		local res_left IS get_prop_mass(stg).
 		SET vehiclestate["m_burn_left"] to res_left.
+								 
+		IF (stg["staging"]["type"]="m_burn") {
 		
-		IF (stg["mode"]=1 AND stg["staging"]["type"]="depletion") {
+			SET stg["m_burn"] TO stg["m_burn"] - deltam.
+			SET stg["m_final"] TO stg["m_initial"] -  stg["m_burn"].
+			
+		} ELSE IF (stg["staging"]["type"]="time") {
+		
+		    	SET stg["Tstage"] TO stg["Tstage"] - surfacestate["deltat"].
+				
+		} ELSE IF (stg["mode"]=2 AND stg["staging"]["type"]="depletion"){
+			//both depletion and minthrot stages
+			
+			SET stg["m_final"] TO stg["m_initial"] - res_left.
+			LOCAL y IS const_G_t_m(stg).
+			SET stg["Tstage"] TO y[0].
+			SET stg["m_final"] TO y[1].
+			SET stg["m_burn"] TO stg["m_initial"] - y[1].
+			
+			//LOCAL nextstg IS vehicle["stages"][vehiclestate["cur_stg"]+1].
+			//
+			//SET nextstg["m_initial"] TO y[1].
+			//SET nextstg["Tstage"] TO const_f_t(nextstg).
+			
+		}ELSE IF (stg["mode"]=1 AND stg["staging"]["type"]="depletion") {
 
 			SET stg["m_burn"] TO res_left.
 			SET stg["m_final"] TO stg["m_initial"] -  res_left.
 			SET stg["Tstage"] TO const_f_t(stg).
 			 
 		}
-	}		
+	}	
+	
+	if (engine_flameout()) {
+		//this should force staging if we detect flameout and it hasn't been triggered yet 
+		SET stg["Tstage"] TO 0.
+	}
+	
+	if (debug_mode) {
+		dump_vehicle().
+	}
 }
 
 
@@ -259,26 +389,20 @@ FUNCTION getState {
 
 //Staging function.
 FUNCTION STAGING{
+
+	LOCAL depletion_ is (vehicle["stages"][vehiclestate["cur_stg"]]["staging"]["type"]="depletion").
 	
-	local stg_staginginfo IS vehicle["stages"][vehiclestate["cur_stg"]]["staging"]["type"].
-	
-	local flameout IS (stg_staginginfo="depletion").
-	
-	IF flameout {
+	IF depletion_ {
 		SET vehiclestate["staging_in_progress"] TO TRUE.
-		SET P_steer TO "kill".
 	}
 	
 	addMessage("CLOSE TO STAGING").
-	SET vehiclestate["staging_time"] TO TIME:SECONDS+100.		//bias of 100 seconds to avoid premature triggering of the staging actions
-	
-	
-	
+	SET vehiclestate["staging_time"] TO surfacestate["time"]+100.		//bias of 100 seconds to avoid premature triggering of the staging actions
 
-	WHEN (flameout AND maxthrust=0) or ((NOT flameout) AND vehicle["stages"][vehiclestate["cur_stg"]]["Tstage"] <=0.0005 ) THEN {	
+	WHEN (vehicle["stages"][vehiclestate["cur_stg"]]["Tstage"] <= 0.01) THEN {	
 		SET vehiclestate["staging_in_progress"] TO TRUE.
 		addMessage("STAGING").
-		SET vehiclestate["staging_time"] TO TIME:SECONDS.
+		SET vehiclestate["staging_time"] TO surfacestate["time"].
 		IF (vehicle["stages"][vehiclestate["cur_stg"]]["staging"]["type"]="depletion") {set vehiclestate["staging_time"] to vehiclestate["staging_time"] + 1.5 .}
 	}
 	
@@ -288,12 +412,12 @@ FUNCTION STAGING{
 		SET stagingaction TO vehicle["stages"][vehiclestate["cur_stg"]+1]["staging"]["stg_action"].
 	}
 	
-	WHEN TIME:SECONDS > vehiclestate["staging_time"] THEN {
+	WHEN (surfacestate["time"] > vehiclestate["staging_time"]) THEN {
 		staging_reset(stagingaction).	
 	}
 	
 	IF vehicle["stages"][vehiclestate["cur_stg"]+1]["staging"]["ignition"]=TRUE {
-		WHEN TIME:SECONDS > (vehiclestate["staging_time"] + vehicle["stages"][vehiclestate["cur_stg"]]["staging"]["ullage_t"]) THEN { 
+		WHEN (surfacestate["time"] > (vehiclestate["staging_time"] + vehicle["stages"][vehiclestate["cur_stg"]]["staging"]["ullage_t"])) THEN { 
 			wait until stage:ready.
 			
 			STAGE.
@@ -306,7 +430,7 @@ FUNCTION STAGING{
 		}
 	}
 	ELSE {
-		WHEN TIME:SECONDS > vehiclestate["staging_time"] + 0.5 THEN {
+		WHEN (surfacestate["time"] > vehiclestate["staging_time"] + 0.5) THEN {
 			addMessage("STAGING SEQUENCE COMPLETE").
 			SET vehiclestate["staging_in_progress"] TO FALSE.
 		}
@@ -342,19 +466,25 @@ FUNCTION staging_reset {
 		
 	SET vehiclestate["cur_stg"] TO vehiclestate["cur_stg"]+1.
 	local stg is get_stage().
-	SET stg["ign_t"] TO TIME:SECONDS.
+	SET stg["ign_t"] TO surfacestate["time"].
 	
 	vehiclestate["avg_thr"]:reset().
 	
 	SET vehiclestate["m_burn_left"] TO stg["m_burn"].
 	handle_ullage(stg).
 	set_staging_trigger().
-	IF vehiclestate["ops_mode"]=2 {SET usc["lastthrot"] TO stg["Throttle"].	}
+	//this is necessary to reset throttle if we have g-throttling before another stage
+	set upfgInternal["throtset"] to stg["Throttle"].
 }
 
 FUNCTION set_staging_trigger {
-	WHEN ( vehicle["stages"][vehiclestate["cur_stg"]]["Tstage"] <= vehicle_pre_staging_t AND vehiclestate["cur_stg"]< (vehicle["stages"]:LENGTH - 1) ) THEN {
-		STAGING().
+
+	WHEN (vehicle["stages"][vehiclestate["cur_stg"]]["Tstage"] <= vehicle_pre_staging_t) THEN {
+		if (vehiclestate["cur_stg"]< (vehicle["stages"]:LENGTH - 1)) {
+			STAGING().
+		} else {
+			set vehicle["low_level"] to TRUE.
+		}
 	}
 }
 
