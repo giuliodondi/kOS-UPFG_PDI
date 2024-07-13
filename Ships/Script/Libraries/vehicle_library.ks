@@ -291,9 +291,6 @@ function get_running_englex {
 	SET englex["isp"] TO englex["isp"]/englex["thrust"].
 	SET englex["minThrottle"] TO englex["minThrottle"]/englex["thrust"].
 	
-	SET englex["thrust"] TO englex["thrust"].
-	SET englex["flow"] TO englex["flow"].
-	
 	SET englex["resources"] TO eng_reslex.
 	
 	RETURN englex.

@@ -2,8 +2,8 @@
 
 GLOBAL g0 IS 9.80665. 
 GLOBAL vehicle_pre_staging_t IS 5.
-GLOBAL vehicle_const_f_dt IS 600.
-GLOBAL vehicle_const_a_glim IS 0.5.	//has to be in earth gs even around the moon
+GLOBAL vehicle_const_f_dt IS 520.
+GLOBAL vehicle_const_a_glim IS 0.18.	//has to be in earth gs even around the moon
 GLOBAL vehicle_pre_conv_throt IS 0.8.
 GLOBAL vehicle_constg_initial_throt IS 0.35.
 //tilt angle limit from vertical during pitchdown and att hold modes
@@ -42,14 +42,16 @@ function setup_standard_vehicle {
 				"minThrottle", full_englex["minThrottle"]
 	).
 	
-	local stg1_m_initial is SHIP:mass.
+	local stg1_m_initial is SHIP:mass*1000.
 	
 	local stageslex is LIST(0).
+	
+	vehicle:add("stages", stageslex).
 	
 	local stg1 is LEXICON(
 			"m_initial",stg1_m_initial,
 			"m_final",	0,
-			"m_burn",0
+			"m_burn",0,
 			"staging", LEXICON (
 				"type","time",
 				"ignition",	TRUE,
@@ -59,7 +61,7 @@ function setup_standard_vehicle {
 			"mode", 1,
 			"throttle", vehicle_pre_conv_throt,
 			"Tstage",vehicle_const_f_dt,
-			"engines",	LIST(englex)					
+			"engines",	englex				
 	).
 	
 	set stg1["m_final"] to const_f_dt_mfinal(stg1).
@@ -70,10 +72,12 @@ function setup_standard_vehicle {
 	local res_left IS get_prop_mass(stg1).	
 	set res_left to res_left - stg1["m_burn"].
 	
+	stageslex:add(stg1).
+	
 	local stg2 is LEXICON(
 			"m_initial",stg1["m_final"],
 			"m_final",	0,
-			"m_burn",0
+			"m_burn",0,
 			"staging", LEXICON (
 				"type","depletion",
 				"ignition",	FALSE,
@@ -84,7 +88,7 @@ function setup_standard_vehicle {
 			"glim", vehicle_const_a_glim,
 			"throttle", vehicle_pre_conv_throt,
 			"Tstage",0,
-			"engines",	LIST(englex)	,
+			"engines",	englex	,
 			"tankparts", stg1["tankparts"]		
 	).
 	
@@ -94,12 +98,10 @@ function setup_standard_vehicle {
 	SET stg2["m_final"] TO y[1].
 	SET stg2["m_burn"] TO stg2["m_initial"] - y[1].
 	
-	stageslex:add(stg1).
-	stageslex:add(stg2).
 	
-	vehicle:add("stages", stageslex).
+	stageslex:add(stg2).
 
-	//debug_vehicle().
+	debug_vehicle().
 }
 
 
