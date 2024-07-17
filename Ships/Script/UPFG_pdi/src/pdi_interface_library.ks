@@ -5,6 +5,9 @@ SET TERMINAL:WIDTH TO terminalwidth.
 SET TERMINAL:HEIGHT TO terminalheight.
 
 FUNCTION addMessage {
+
+	//implement hee a check to send the message either to gui (fir pdi) or to terminal (for other cases such as ascent)
+
 	DECLARE PARAMETER msg.
 	LOCAL tt IS TIME:SECONDS.
 	LOCAL ttl IS 4.

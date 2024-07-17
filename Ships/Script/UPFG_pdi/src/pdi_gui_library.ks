@@ -415,9 +415,15 @@ FUNCTION make_main_pdi_gui {
 		
 		LOCAL pdisite IS pdi_siteslex[lex_key].
 		
+		if (current_orbit["body"] != landing_state["body"]) {
+			PRINT ("ERROR! CANNOT TARGET A SITE ON ANOTHER BODY!") AT (1,40).
+			LOCAL X IS 1/0.
+		}
+		
 		set landing_state["tgtsite"] to pdisite["position"].
 		set landing_state["tgtsite_name"] to pdisite["name"].
 		set landing_state["body"] to pdisite["position"]:body.
+		set landing_state["pre_converged"] to false.
 		
 	}.
 	

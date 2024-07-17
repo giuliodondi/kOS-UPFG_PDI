@@ -100,6 +100,16 @@ function setup_standard_vehicle {
 	
 	
 	stageslex:add(stg2).
+	
+	//required to be facing ahead at pitchover
+	SET vehicle["roll"] TO 180.
+
+	SET control["roll_angle"] TO vehicle["roll"].
+	
+	//prevent events from triggering before PDI
+	set vehicle["ign_t"] to TIME:SECONDS + 100000.
+	
+	set_staging_trigger().
 
 	debug_vehicle().
 }

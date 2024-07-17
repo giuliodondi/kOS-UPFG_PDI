@@ -50,70 +50,82 @@ function pdi_main_exec {
 	GLOBAL null_velocity_gain IS 4.
 	//SET delta_shift TO delta_shift/SHIP:BODY:RADIUS.
 	
-	setup().
-	
 	initialise_vehicle().
 	
-	//set the ignition time into the future to bias the mission closk
-	//and prevent events from triggering before PDI
-	set vehicle["stages"][1]["ign_t"] to TIME:SECONDS + 100000.
+	pdi_countdown_loop().
 	
 	pdi_main_loop().
 }
 
-
-FUNCTION pdi_main_loop {
+function pdi_countdown_loop {
 
 	//to bypass iteration time of UPFG during pre-convergence
 	SET vehiclestate["staging_in_progress"] TO TRUE.
 
-	pre_converge_guidance().
 	
-	//initialise ignition timer
-	SET vehicle["ign_t"] TO TIME:SECONDS + current_orbit["pdi_time_ahead"].
-	
-	//save steering info at pdi 
-	SET usc["lastvec"] TO - orbitstate["velocity"]:NORMALIZED.
-	SET control["refvec"] TO vecYZ(orbitstate["radius"]).
-
-
-	drawUI().
-	
-	getState().
-	
-	addMessage("POWERED DESCENT INITIATION POINT DETERMINED").
-	addMessage("POWERED DESCENT IN " + sectotime(vehicle["ign_t"] - TIME:SECONDS)).
-	
-
-	dataViz().
-
-	//initialise initial orientation
-	
-	set control["steerdir"] TO aimAndRoll(vecYZ(usc["lastvec"]), control["refvec"], control["roll_angle"]). 
-	LOCK STEERING TO control["steerdir"].
 	
 	SET vehiclestate["ops_mode"] TO 1.
 	
 	SET target_orbit TO landing_state.
 	
-	GLOBAL redesig_flag IS FALSE.
 	
 	GLOBAL att_hold_swch IS FALSE.
 	
 	
-	//initialise PDI cues
-	//warp halt and attitude cue
-	WHEN (TIME:SECONDS > vehicle["ign_t"] - 65) THEN {
-		set warp to 0.
-		SAS OFF.
-		RCS ON.
-		SET control["refvec"] TO -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
-		LOCK STEERING TO control["steerdir"].
+	UNTIL FALSE {
+	
 		
-		WHEN TIME:SECONDS > vehicle["ign_t"] - 15 THEN {
-			addMessage("PREPARE FOR POWERED DESCENT").
+
+		getState().
+	
+		if (not landing_state["pre_converged"]) {
+		
+			addMessage("RE-CONVERGING GUIDANCE").
+		
+			pre_converge_guidance().
+	
+			//initialise ignition timer
+			SET vehicle["ign_t"] TO TIME:SECONDS + current_orbit["pdi_time_ahead"].
+			
+			//save steering info at pdi 
+			SET usc["lastvec"] TO - orbitstate["velocity"]:NORMALIZED.
+			SET control["refvec"] TO vecYZ(orbitstate["radius"]).
+
+
+			drawUI().
+			
+			addMessage("POWERED DESCENT INITIATION POINT DETERMINED").
+			addMessage("POWERED DESCENT IN " + sectotime(vehicle["ign_t"] - TIME:SECONDS)).
+			
+			dataViz().
+
+			//initialise initial orientation
+			
+			set control["steerdir"] TO aimAndRoll(vecYZ(usc["lastvec"]), control["refvec"], control["roll_angle"]). 
+			LOCK STEERING TO control["steerdir"].
+			
+			WHEN (surfacestate["time"] > vehicle["ign_t"] - 20) THEN {
+				addMessage("PREPARE FOR POWERED DESCENT").
+			}
+			
+			set landing_state["pre_converged"] to true.
 		}
+	
+		IF (surfacestate["time"] > vehicle["ign_t"] - 65) THEN {
+			set warp to 0.
+			SAS OFF.
+			RCS ON.
+			SET control["refvec"] TO -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
+			LOCK STEERING TO control["steerdir"].
+		}
+	
 	}
+
+}
+
+
+FUNCTION pdi_main_loop {
+
 	
 	//WHEN TIME:SECONDS > vehicle["ign_t"] - (60*warp) THEN {
 	//	set warp to 0.
