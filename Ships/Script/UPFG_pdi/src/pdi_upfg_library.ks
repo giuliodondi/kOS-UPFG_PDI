@@ -30,7 +30,6 @@ FUNCTION setupUPFG {
 	SET upfgInternal TO  LEXICON(
 		"r_cur", V(0, 0, 0),
 		"v_cur", V(0, 0, 0),
-		"ve_cur", V(0, 0, 0),
 		"t_cur", 0,
 		"m_cur", 0,
 		"tb_cur", 0,
@@ -64,6 +63,7 @@ FUNCTION setupUPFG {
 		"lambdadot", V(0,0,0),
 		"lambdy", 0,
 		"omega", V(0,0,0),
+		"z_error", 0,
 		"steering", init_steervec,
 		"s_alt", FALSE,
 		"s_plane", FALSE,
@@ -128,6 +128,36 @@ FUNCTION upfg_standard_initialise {
 	SET internal["vgo"] tO internal["vd"] - internal["v"].
 }
 
+FUNCTION upfg_landing_initialise {
+	PARAMETER ldg_state.
+	PARAMETER internal.
+	
+	LOCAL curT IS surfacestate["time"].
+	LOCAL curR IS orbitstate["radius"].
+	LOCAL curV IS orbitstate["velocity"].
+	
+	local rgrav IS -SHIP:ORBIT:BODY:MU * curR / curR:MAG^3.
+	
+	SET internal["time"] tO curT.
+	SET internal["rd"] tO ldg_state["radius"].
+	SET internal["rdmag"] tO ldg_state["radius"]:mag.
+	SET internal["v"] tO curV.
+	SET internal["rgrav"] tO 0.5 * rgrav.
+	
+	
+	SET internal["s_plane"] TO TRUE.
+	SET internal["s_alt"] TO TRUE.
+	
+	SET internal["ix"] tO ldg_state["radius"]:NORMALIZED.
+	SET internal["iy"] tO -ldg_state["normal"].
+	
+	SET internal["vd"] tO ldg_state["velvec"]
+	
+	SET internal["vgo"] tO internal["vd"] - internal["v"].
+	
+	
+}
+
 FUNCTION upfg_sense_current_state {
 	PARAMETER internal.
 	
@@ -136,13 +166,8 @@ FUNCTION upfg_sense_current_state {
 	SET internal["t_cur"] TO surfacestate["time"].
 	SET internal["r_cur"] TO orbitstate["radius"].
 	SET internal["v_cur"] TO orbitstate["velocity"].
-	SET internal["ve_cur"] TO vecYZ(surfacestate["surfv"]).
 	SET internal["m_cur"] TO stg["m_initial"].
 	SET internal["tb_cur"] TO stg["Tstage"].
-
-	IF (target_orbit["mode"] = 5) {
-		SET internal["mbod"] tO vehicle["rtls_mbod"].
-	}
 }
 
 
@@ -215,8 +240,12 @@ FUNCTION upfg_landing {
 		SET internal["vgo"] TO internal["vgo"] - (internal["v_cur"] - internal["v"]).
 		SET internal["v"] TO internal["v_cur"].
 	} ELSE {
-			
-		upfg_standard_initialise(tgt_orb, internal).
+	
+		IF (s_mode >= 10) {
+			upfg_landing_initialise(tgt_orb, internal).
+		} else {
+			upfg_standard_initialise(tgt_orb, internal).
+		}
 		
 		SET internal["s_init"] tO TRUE.
 		
@@ -399,25 +428,50 @@ FUNCTION upfg_landing {
 	
 	//corrector portion
 	LOCAL dvgo IS 0.
+	
+	if (s_mode >= 11) {
+		//landing powered descent
+		SET tgt_orb TO update_landing_state(tgt_orb, internal["r_cur"], internal["tgo"]).
+		SET internal["rd"] TO tgt_orb["radius"].
+		SET internal["vd"] TO tgt_orb["velvec"].
+		
+		//range throttling (old implementation)
+		set internal["z_error"] to VDOT(internal["iz"], (internal["rd"] - internal["rp"])).
+	
+		LOCAL vgoz IS VDOT(internal["iz"], internal["vgo"]).
+		LOCAL dtgo IS -2*internal["z_error"]/vgoz.
 
-	//desired velocity
-	SET tgt_orb TO cutoff_params(tgt_orb, internal["rd"]).
-	
-	IF (internal["s_plane"]) {
-		SET internal["iy"] TO -tgt_orb["normal"].
-	} ELSE {
-		SET internal["iy"] TO VCRS(internal["vd"], internal["rd"]):NORMALIZED.
-		SET tgt_orb["normal"] TO -internal["iy"].
+		LOCAL K_gain IS tb[0]/(tb[0] + dtgo).
+		
+		local thr_angle is CLAMP(VANG(internal["steering"], internal["vgo"]), 0, 60).
+		
+		set K_gain to K_gain / COS(thr_angle).
+		
+		local Kknew is kk_cmd*K_gain.
+		
+		//clamp throttle
+		SET kk_cmd TO CLAMP(Kknew / 100, 0, 1).
+		
+	} else {
+		//desired velocity
+		SET tgt_orb TO cutoff_params(tgt_orb, internal["rd"]).
+		
+		IF (internal["s_plane"]) {
+			SET internal["iy"] TO -tgt_orb["normal"].
+		} ELSE {
+			SET internal["iy"] TO VCRS(internal["vd"], internal["rd"]):NORMALIZED.
+			SET tgt_orb["normal"] TO -internal["iy"].
+		}
+		
+		SET internal["iz"] TO VCRS(internal["ix"], internal["iy"]):NORMALIZED.
+		
+		SET internal["vd"] TO cutoff_velocity_vector(
+			internal["ix"],
+			internal["iy"],
+			tgt_orb["velocity"],
+			tgt_orb["fpa"]
+		).
 	}
-	
-	SET internal["iz"] TO VCRS(internal["ix"], internal["iy"]):NORMALIZED.
-	
-	SET internal["vd"] TO cutoff_velocity_vector(
-		internal["ix"],
-		internal["iy"],
-		tgt_orb["velocity"],
-		tgt_orb["fpa"]
-	).
 
 	SET dvgo TO (internal["vd"] - vp).
 	
@@ -490,6 +544,7 @@ FUNCTION upfg_landing {
 	SET internal["throtset"] TO CLAMP(kk_cmd, 0, 1).
 	
 	//terminal count 		
+	
 	local tgo_terminal_flag IS (internal["tgo"] <= internal["terminal_time"]).
 	
 	local guided_meco_flag is internal["s_conv"] AND tgo_terminal_flag.
