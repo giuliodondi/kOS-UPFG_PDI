@@ -415,7 +415,7 @@ FUNCTION make_main_pdi_gui {
 		
 		LOCAL pdisite IS pdi_siteslex[lex_key].
 		
-		if (current_orbit["body"] != landing_state["body"]) {
+		if (current_orbit["body"] <> landing_state["body"]) {
 			PRINT ("ERROR! CANNOT TARGET A SITE ON ANOTHER BODY!") AT (1,40).
 			LOCAL X IS 1/0.
 		}

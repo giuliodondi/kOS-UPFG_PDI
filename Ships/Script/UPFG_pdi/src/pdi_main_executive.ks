@@ -1,12 +1,11 @@
 @LAZYGLOBAL OFF.
 CLEARSCREEN.
 SET CONFIG:IPU TO 1200.	
-global debug_mode is false.
+global debug_mode is true.
 global dap_debug is false.
 
 GLOBAL log_data Is false.
-
-	GLOBAL debug Is false.
+GLOBAL debug Is false.
 
 function pdi_main_exec {
 	CLEARSCREEN.
@@ -26,6 +25,7 @@ function pdi_main_exec {
 	RUNPATH("0:/Libraries/aerosim_library").	
 	
 	RUNPATH("0:/UPFG_pdi/src/pdi_interface_library").
+	RUNPATH("0:/UPFG_pdi/src/pdi_gui_library").
 	RUNPATH("0:/UPFG_pdi/src/pdi_targeting_library").
 	RUNPATH("0:/UPFG_pdi/src/pdi_upfg_library").
 	RUNPATH("0:/UPFG_pdi/src/pdi_vehicle_library").
@@ -54,7 +54,7 @@ function pdi_main_exec {
 	
 	pdi_countdown_loop().
 	
-	pdi_main_loop().
+	//pdi_main_loop().
 }
 
 function pdi_countdown_loop {
@@ -65,16 +65,15 @@ function pdi_countdown_loop {
 	
 	
 	SET vehiclestate["ops_mode"] TO 1.
-	
-	SET target_orbit TO landing_state.
-	
+
 	
 	GLOBAL att_hold_swch IS FALSE.
 	
 	
 	UNTIL FALSE {
-	
-		
+		if (quit_program) {
+			return.
+		}
 
 		getState().
 	
@@ -88,8 +87,8 @@ function pdi_countdown_loop {
 			SET vehicle["ign_t"] TO TIME:SECONDS + current_orbit["pdi_time_ahead"].
 			
 			//save steering info at pdi 
-			SET usc["lastvec"] TO - orbitstate["velocity"]:NORMALIZED.
-			SET control["refvec"] TO vecYZ(orbitstate["radius"]).
+			//SET usc["lastvec"] TO - orbitstate["velocity"]:NORMALIZED.
+			//SET control["refvec"] TO vecYZ(orbitstate["radius"]).
 
 
 			drawUI().
@@ -101,17 +100,17 @@ function pdi_countdown_loop {
 
 			//initialise initial orientation
 			
-			set control["steerdir"] TO aimAndRoll(vecYZ(usc["lastvec"]), control["refvec"], control["roll_angle"]). 
-			LOCK STEERING TO control["steerdir"].
+			//set control["steerdir"] TO aimAndRoll(vecYZ(usc["lastvec"]), control["refvec"], control["roll_angle"]). 
+			//LOCK STEERING TO control["steerdir"].
 			
-			WHEN (surfacestate["time"] > vehicle["ign_t"] - 20) THEN {
-				addMessage("PREPARE FOR POWERED DESCENT").
-			}
+			//WHEN (surfacestate["time"] > vehicle["ign_t"] - 20) THEN {
+			//	addMessage("PREPARE FOR POWERED DESCENT").
+			//}
 			
 			set landing_state["pre_converged"] to true.
 		}
 	
-		IF (surfacestate["time"] > vehicle["ign_t"] - 65) THEN {
+		IF (surfacestate["time"] > vehicle["ign_t"] - 65) {
 			set warp to 0.
 			SAS OFF.
 			RCS ON.

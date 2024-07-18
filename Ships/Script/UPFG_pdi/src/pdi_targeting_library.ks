@@ -45,9 +45,26 @@ GLOBAL landing_state IS LEXICON(
 						"redesignation_enabled", false
 ).
 
+GLOBAL surfacestate IS  LEXICON(
+								"time",0,
+								"deltat", 0,
+								"MET",0,
+								"surfv", v(0,0,0),
+								"az",0,
+								"pitch",0,
+								"alt",0,
+								"vs",0,
+								"hs",0,
+								"vdir",0,
+								"hdir",0,
+								"q",0, 
+								"maxq", 0
+).
 
-GLOBAL surfacestate IS  LEXICON("MET",0,"az",0,"pitch",0,"alt",0,"vs",0,"hs",0,"vdir",0,"hdir",0,"q",0).
-GLOBAL orbitstate IS  LEXICON("radius",0,"velocity",0). 
+GLOBAL orbitstate IS  LEXICON(
+								"radius",v(0,0,0),
+								"velocity",v(0,0,0)
+). 
 
 
 								//INITIALISATION FUNCTION 
@@ -127,18 +144,21 @@ FUNCTION pre_converge_guidance {
 		
 		//reset and converge upfg
 		setupUPFG().
-		upfg_sense_current_state().
+		upfg_sense_current_state(upfgInternal).
 
 		UNTIL FALSE {
+			if (quit_program) {
+				return.
+			}
 			IF (upfgInternal["s_conv"]) {
-				if (debug) {
+				if (debug_mode) {
 					PRINT "                                  " AT (0,15).
-					PRINT " GUIDANCE CONVERGED IN " + usc["itercount"] + " ITERATIONS" AT (0,15).
+					PRINT " GUIDANCE CONVERGED IN " + upfgInternal ["itercount"] + " ITERATIONS" AT (0,15).
 				}
 				BREAK.
 			}
 			
-			upfg(
+			upfg_landing(
 				vehicle["stages"]:SUBLIST(vehiclestate["cur_stg"],vehicle:LENGTH-vehiclestate["cur_stg"]),
 				landing_state,
 				upfgInternal
@@ -148,7 +168,7 @@ FUNCTION pre_converge_guidance {
 		}
 		
 		//measure error between rp and the shifted landing site
-		LOCAL alpha_landing_error IS signed_angle(upfgInternal["rp"], ldg_state["radius"], landing_state["normal"]:NORMALIZED, 0).
+		LOCAL alpha_landing_error IS signed_angle(upfgInternal["rp"], landing_state["radius"], landing_state["normal"]:NORMALIZED, 0).
 		
 		IF (ABS(alpha_landing_error - alpha_landing_error_old) < alpha_tol) {BREAK.}
 		
@@ -160,7 +180,7 @@ FUNCTION pre_converge_guidance {
 		
 		SET current_orbit["radius"] TO rodrigues(current_orbit["radius"], current_orbit["normal"],alpha_landing_error).
 		
-		if (debug) {
+		if (debug_mode) {
 		
 			PRINT "pre-conv iteration " +  iter_count AT (0,8).
 			print "standoff_angle " + standoff_angle at (0,10).
@@ -187,7 +207,7 @@ FUNCTION pre_converge_guidance {
 		}
 	}
 	
-	if (debug) {
+	if (debug_mode) {
 		until false{}
 	}
 	
@@ -390,7 +410,7 @@ FUNCTION redraw_target_arrow {
 
 
 //for nominal ascent upfg if needed 
-FUNCTION nominal_cutoff_params {
+FUNCTION cutoff_params {
 	PARAMETER tgt_orb.
 	PARAMETER cutoff_r.
 	

@@ -46,6 +46,7 @@ FUNCTION setupUPFG {
 		"constraint_release_t", 40,
 		"rbias", V(0, 0, 0),
 		"rd", V(0, 0, 0),
+		"rp", V(0, 0, 0),		//addition from shuttle upfg
 		"rdmag", 0,
 		"vd", V(0, 0, 0),
 		"v", V(0, 0, 0),
@@ -151,7 +152,7 @@ FUNCTION upfg_landing_initialise {
 	SET internal["ix"] tO ldg_state["radius"]:NORMALIZED.
 	SET internal["iy"] tO -ldg_state["normal"].
 	
-	SET internal["vd"] tO ldg_state["velvec"]
+	SET internal["vd"] tO ldg_state["velvec"].
 	
 	SET internal["vgo"] tO internal["vd"] - internal["v"].
 	
@@ -408,15 +409,15 @@ FUNCTION upfg_landing {
 	SET internal["rgrav"] TO pack[0] - rc1 - vc1 * internal["tgo"].
 	LOCAL vgrav IS pack[1] - vc1.
 
-	LOCAL rp IS internal["r_cur"] + internal["v_cur"]*internal["tgo"] + internal["rgrav"] + rthrust.
+	set internal["rp"] to internal["r_cur"] + internal["v_cur"]*internal["tgo"] + internal["rgrav"] + rthrust.
 	LOCAL vp IS internal["v_cur"] + vgrav + vthrust.
 	
 	//desired orbit plane correction subtask
 	IF (internal["s_plane"]) {
-		SET internal["rd"] TO VXCL(internal["iy"],rp).	
+		SET internal["rd"] TO VXCL(internal["iy"],internal["rp"]).	
 	} ELSE {
 		//always land in this for rtls
-		set internal["rd"] to rp.
+		set internal["rd"] to internal["rp"].
 	}
 	
 	//desired position subtask
@@ -429,28 +430,30 @@ FUNCTION upfg_landing {
 	//corrector portion
 	LOCAL dvgo IS 0.
 	
-	if (s_mode >= 11) {
-		//landing powered descent
-		SET tgt_orb TO update_landing_state(tgt_orb, internal["r_cur"], internal["tgo"]).
-		SET internal["rd"] TO tgt_orb["radius"].
-		SET internal["vd"] TO tgt_orb["velvec"].
+	if (s_mode >= 10) {
+		if (s_mode >= 11) {
+			//landing powered descent
+			SET tgt_orb TO update_landing_state(tgt_orb, internal["r_cur"], internal["tgo"]).
+			SET internal["rd"] TO tgt_orb["radius"].
+			SET internal["vd"] TO tgt_orb["velvec"].
+			
+			//range throttling (old implementation)
+			set internal["z_error"] to VDOT(internal["iz"], (internal["rd"] - internal["rp"])).
 		
-		//range throttling (old implementation)
-		set internal["z_error"] to VDOT(internal["iz"], (internal["rd"] - internal["rp"])).
-	
-		LOCAL vgoz IS VDOT(internal["iz"], internal["vgo"]).
-		LOCAL dtgo IS -2*internal["z_error"]/vgoz.
+			LOCAL vgoz IS VDOT(internal["iz"], internal["vgo"]).
+			LOCAL dtgo IS -2*internal["z_error"]/vgoz.
 
-		LOCAL K_gain IS tb[0]/(tb[0] + dtgo).
-		
-		local thr_angle is CLAMP(VANG(internal["steering"], internal["vgo"]), 0, 60).
-		
-		set K_gain to K_gain / COS(thr_angle).
-		
-		local Kknew is kk_cmd*K_gain.
-		
-		//clamp throttle
-		SET kk_cmd TO CLAMP(Kknew / 100, 0, 1).
+			LOCAL K_gain IS tb[0]/(tb[0] + dtgo).
+			
+			local thr_angle is CLAMP(VANG(internal["steering"], internal["vgo"]), 0, 60).
+			
+			set K_gain to K_gain / COS(thr_angle).
+			
+			local Kknew is kk_cmd*K_gain.
+			
+			//clamp throttle
+			SET kk_cmd TO CLAMP(Kknew / 100, 0, 1).
+		}
 		
 	} else {
 		//desired velocity
