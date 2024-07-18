@@ -7,7 +7,7 @@ GLOBAL tgt_body is BODY(desired_body).
 
 //Settings
 
-GLOBAL vesselfilename is "Apollo LEM".     //this is the name of the vessel file to load
+GLOBAL vesselfilename is "Apollo Direct".     //this is the name of the vessel file to load
 
 
 LOCAL tgtlat IS  4.296.
