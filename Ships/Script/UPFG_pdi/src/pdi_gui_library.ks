@@ -424,6 +424,7 @@ FUNCTION make_main_pdi_gui {
 		set landing_state["tgtsite_name"] to pdisite["name"].
 		set landing_state["body"] to pdisite["position"]:body.
 		set landing_state["pre_converged"] to false.
+		set landing_state["pre_conv_interrupt"] to true.
 		
 	}.
 	
@@ -494,6 +495,21 @@ FUNCTION make_main_pdi_gui {
 	
 }
 
+
+function pdi_add_scroll_msg {
+	parameter msg.
+	parameter clear_all is false.
+	
+	if (clear_all AND pdi_msgscroll:widgets:LENGTH > 0) {
+		pdi_msgscroll:widgets[0]:dispose().
+	}
+	
+	local newlab is pdi_msgscroll:addlabel(msg).
+	set newlab:style:margin:v to -2.
+	
+	set pdi_msgscroll:position to v(0,1000,0).
+
+}
 
 
 

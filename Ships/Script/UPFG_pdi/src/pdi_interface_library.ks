@@ -4,17 +4,40 @@ GLOBAL terminalheight IS 47.
 SET TERMINAL:WIDTH TO terminalwidth.
 SET TERMINAL:HEIGHT TO terminalheight.
 
-FUNCTION addMessage {
+GLOBAL P_vizMsg IS LIST().
 
-	//implement hee a check to send the message either to gui (fir pdi) or to terminal (for other cases such as ascent)
+//wrapper 
+function addMessage {
+	PARAMETER msg.
+	
+	addGUIMessage(msg).
+}
 
+FUNCTION addGUIMessage {
+	PARAMETER msg.
+	
+	LOCAL clear_ is false.
+	
+	local t_msg is TIME:SECONDS - vehicle["ign_t"].
+	
+	local t_str IS "".
+	
+	if (t_msg >= 0) {
+		SET t_str TO t_str + "+".
+	}
+	
+	pdi_add_scroll_msg(
+						t_str + sectotime(TIME:SECONDS - vehicle["ign_t"],"") + ": " + msg,
+						clear_
+	).
+
+}
+
+FUNCTION addMessage_terminal {
 	DECLARE PARAMETER msg.
 	LOCAL tt IS TIME:SECONDS.
 	LOCAL ttl IS 4.
 
-	IF NOT( DEFINED P_vizMsg ) {
-		GLOBAL P_vizMsg IS LIST().
-	}
 	local rem_list IS LIST().
 	FROM {LOCAL k IS 0.} UNTIL k = P_vizMsg:LENGTH  STEP { SET k TO k+1.} DO{
 		IF tt >= P_vizMsg[k]["ttl"] {
@@ -32,19 +55,6 @@ FUNCTION addMessage {
 							"ttl",tt + ttl
 					)
 	) .
-}
-
-FUNCTION message_Viz {
-	LOCAL  msglist IS P_vizMsg:SUBLIST(0,P_vizMsg:LENGTH).
-	LOCAl k IS 0.
-	UNTIL FALSE {
-		IF k>= P_vizMsg:LENGTH {BREAK.}
-		PRINT "                                                             "AT (1,msgloc + k).
-		IF TIME:SECONDS < P_vizMsg[k]["ttl"] {
-			PRINTPLACE(P_vizMsg[k]["msg"],61,1,msgloc + k).
-		}
-		SEt k TO k+1.
-	}
 }
 
 FUNCTION drawUI {

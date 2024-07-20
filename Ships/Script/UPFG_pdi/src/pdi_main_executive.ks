@@ -55,6 +55,10 @@ function pdi_main_exec {
 	pdi_countdown_loop().
 	
 	//pdi_main_loop().
+	
+	clearscreen.
+	clearvecdraws().
+	close_all_GUIs().
 }
 
 function pdi_countdown_loop {
@@ -79,36 +83,42 @@ function pdi_countdown_loop {
 	
 		if (not landing_state["pre_converged"]) {
 		
-			addMessage("RE-CONVERGING GUIDANCE").
+			addMessage("TARGET SELECTED : " + landing_state["tgtsite_name"]).
+			addMessage("RE-CONVERGING POWERED DESCENT").
 		
 			pre_converge_guidance().
-	
-			//initialise ignition timer
-			SET vehicle["ign_t"] TO TIME:SECONDS + current_orbit["pdi_time_ahead"].
 			
-			//save steering info at pdi 
-			//SET usc["lastvec"] TO - orbitstate["velocity"]:NORMALIZED.
-			//SET control["refvec"] TO vecYZ(orbitstate["radius"]).
+			if (landing_state["pre_conv_interrupt"]) {
+				set landing_state["pre_converged"] to false.
+				set landing_state["pre_conv_interrupt"] to false.
+				
+			} else {
+
+				
+				
+				//save steering info at pdi 
+				//SET usc["lastvec"] TO - orbitstate["velocity"]:NORMALIZED.
+				//SET control["refvec"] TO vecYZ(orbitstate["radius"]).
 
 
-			drawUI().
-			
-			addMessage("POWERED DESCENT INITIATION POINT DETERMINED").
-			addMessage("POWERED DESCENT IN " + sectotime(vehicle["ign_t"] - TIME:SECONDS)).
-			
-			dataViz().
+				//drawUI().
+				
+				//dataViz().
 
-			//initialise initial orientation
-			
-			//set control["steerdir"] TO aimAndRoll(vecYZ(usc["lastvec"]), control["refvec"], control["roll_angle"]). 
-			//LOCK STEERING TO control["steerdir"].
-			
-			//WHEN (surfacestate["time"] > vehicle["ign_t"] - 20) THEN {
-			//	addMessage("PREPARE FOR POWERED DESCENT").
-			//}
-			
-			set landing_state["pre_converged"] to true.
+				//initialise initial orientation
+				
+				//set control["steerdir"] TO aimAndRoll(vecYZ(usc["lastvec"]), control["refvec"], control["roll_angle"]). 
+				//LOCK STEERING TO control["steerdir"].
+				
+				//WHEN (surfacestate["time"] > vehicle["ign_t"] - 20) THEN {
+				//	addMessage("PREPARE FOR POWERED DESCENT").
+				//}
+				
+				set landing_state["pre_converged"] to true.
+			}
+
 		}
+			
 	
 		IF (surfacestate["time"] > vehicle["ign_t"] - 65) {
 			set warp to 0.
@@ -432,8 +442,7 @@ FUNCTION pdi_main_loop {
 	UNLOCK STEERING.
 	UNLOCK THROTTLE.
 	SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
-	clearscreen.
-	clearvecdraws().
+	
 
 }
 

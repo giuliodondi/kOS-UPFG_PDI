@@ -66,6 +66,7 @@ FUNCTION setupUPFG {
 		"omega", V(0,0,0),
 		"z_error", 0,
 		"steering", init_steervec,
+		"s_msg_inhibit", false,
 		"s_alt", FALSE,
 		"s_plane", FALSE,
 		"s_throt", FALSE,
@@ -502,7 +503,9 @@ FUNCTION upfg_landing {
 			} ELSE {
 				if (NOT internal["s_conv"]) {
 					//moved here from main executive
-					addMessage("GUIDANCE CONVERGED IN " + internal["itercount"] + " ITERATIONS").
+					if (not internal["s_msg_inhibit"]) {
+						addMessage("GUIDANCE CONVERGED IN " + internal["itercount"] + " ITERATIONS").
+					}
 					SET internal["s_conv"] tO TRUE.
 					SET internal["iter_conv"] TO 0.
 				}

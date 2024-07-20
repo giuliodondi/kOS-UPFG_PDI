@@ -42,6 +42,7 @@ GLOBAL landing_state IS LEXICON(
 						"fpa", 0,
 						"mode", 10,
 						"pre_converged", false,
+						"pre_conv_interrupt", false,
 						"redesignation_enabled", false
 ).
 
@@ -65,7 +66,6 @@ GLOBAL orbitstate IS  LEXICON(
 								"radius",v(0,0,0),
 								"velocity",v(0,0,0)
 ). 
-
 
 								//INITIALISATION FUNCTION 
 								
@@ -129,6 +129,7 @@ FUNCTION pre_converge_guidance {
 	LOCAL alpha_landing_error_old IS 0.
 	LOCAL iter_count IS 0.
 	local upfg_tgo_last is 600.
+	
 	UNTIL FALSE {
 		SET iter_count TO iter_count + 1.
 	
@@ -144,17 +145,14 @@ FUNCTION pre_converge_guidance {
 		
 		//reset and converge upfg
 		setupUPFG().
+		set upfgInternal["s_msg_inhibit"] to true.
 		upfg_sense_current_state(upfgInternal).
 
 		UNTIL FALSE {
-			if (quit_program) {
+			if (quit_program OR landing_state["pre_conv_interrupt"]) {
 				return.
 			}
 			IF (upfgInternal["s_conv"]) {
-				if (debug_mode) {
-					PRINT "                                  " AT (0,15).
-					PRINT " GUIDANCE CONVERGED IN " + upfgInternal ["itercount"] + " ITERATIONS" AT (0,15).
-				}
 				BREAK.
 			}
 			
@@ -164,7 +162,6 @@ FUNCTION pre_converge_guidance {
 				upfgInternal
 			).
 
-			WAIT 0.
 		}
 		
 		//measure error between rp and the shifted landing site
@@ -203,14 +200,16 @@ FUNCTION pre_converge_guidance {
 			arrow(vecyz(orbitstate["radius"]),"initial_r", SHIP:ORBIT:BODY:POSITION, 1.2).
 			arrow(vecyz(orbitstate["velocity"]*1000),"initial_v", SHIP:ORBIT:BODY:POSITION + vecyz(orbitstate["radius"])*1.2, 1.2).
 			
-			WAIT 0.8.
 		}
 	}
 	
-	if (debug_mode) {
-		until false{}
-	}
+	addMessage("POWERED DESCENT CONVERGED IN " + iter_count + " PASSES").
 	
+	//initialise ignition timer
+	SET vehicle["ign_t"] TO surfacestate["time"] + current_orbit["pdi_time_ahead"].
+	addMessage("POWERED DESCENT IN " + sectotime(current_orbit["pdi_time_ahead"])).
+	
+	set upfgInternal["s_msg_inhibit"] to false.
 	
 	SET current_orbit["mode"] TO 1.
 
