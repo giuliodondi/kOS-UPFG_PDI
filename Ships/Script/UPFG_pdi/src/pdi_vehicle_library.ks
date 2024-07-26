@@ -504,32 +504,284 @@ FUNCTION set_staging_trigger {
 									//VEHICLE CONTROL FUNCTIONS
 
 
-FUNCTION setup_steering_manager {
+//thr_rpl will refer to the full rated power level of the engine where 0 throttle is 0% force
+//unlike the ksp throttle where 0% is the minimum
+function pdi_dap_factory {
+
 	STEERINGMANAGER:RESETTODEFAULT().
-	SET SteeringManager:MAXSTOPPINGTIME TO 4.
 	SET STEERINGMANAGER:ROLLCONTROLANGLERANGE TO 4.0.
-	SET STEERINGMANAGER:PITCHTS TO 4.0.
-	SET STEERINGMANAGER:YAWTS TO 4.0.
-	SET STEERINGMANAGER:ROLLTS TO 3.0.
-	SET STEERINGMANAGER:PITCHPID:KD TO 0.2.
-	SET STEERINGMANAGER:YAWPID:KD TO 0.2.
-	SET STEERINGMANAGER:ROLLPID:KD TO 0.2.
-}
 
 
-//	Throttle controller for UPFG
-FUNCTION throttleControl {
-
-	local stg IS get_stage().
-	local throtval is stg["Throttle"].
-
-	LOCAL minthrot IS 0.
-	IF stg:HASKEY("minThrottle") {
-		SET minthrot TO stg["minThrottle"].
-	}
+	LOCAL this IS lexicon().
 	
-	RETURN throtteValueConverter(stg["Throttle"], minthrot).
+	this:add("steer_mode", "").
+	this:add("thr_mode", "").		//ksp 0-1 throttle value
+	
+	this:add("thr_cmd", 1).
+	this:add("thr_cmd_rpl", 1).
+	
+	this:add("last_time", TIME:SECONDS).
+	
+	this:add("iteration_dt", 0).
+	
+	this:add("update_time",{
+		LOCAL old_t IS this:last_time.
+		SET this:last_time TO TIME:SECONDS.
+		SET this:iteration_dt TO this:last_time - old_t.
+	}).
+	
+	this:add("cur_dir", SHIP:FACINg).
+	this:add("cur_thrvec", v(0,0,0)).
+	
+	this:add("cur_steer_pitch", 0).
+	this:add("cur_steer_az", 0).
+	this:add("cur_steer_roll", 0).
+	
+	this:add("steer_pitch_delta", 0).
+	this:add("steer_yaw_delta", 0).
+	this:add("steer_roll_delta", 0).
+	this:add("throt_delta", 0).
+	
+	this:add("steer_dir", SHIP:FACINg).
+	
+	this:add("measure_refv_roll", {
+		LOCAL refv IS VXCL(this:steer_thrvec, this:steer_refv):NORMALIZED.
+		LOCAL topv IS VXCL(this:steer_thrvec, this:cur_dir:TOPVECTOR):NORMALIZED.
+		
+		
+		set this:cur_steer_roll to signed_angle(refv, topv, this:steer_thrvec, 1).
+	}).
+	
+	this:add("measure_cur_state", {
+		this:update_time().
+		
+		set this:cur_dir to ship:facing.
+		set this:cur_thrvec to thrust_vec().
+		
+		set this:cur_steer_az to get_az_lvlh(this:steer_dir).
+		set this:cur_steer_pitch to get_pitch_lvlh(this:steer_dir).
+		
+		this:measure_refv_roll().
+		
+		local tgtv_h is vxcl(this:steer_dir:topvector, this:steer_tgtdir:forevector):normalized.
+		local tgtv_v is vxcl(this:steer_dir:starvector, this:steer_tgtdir:forevector):normalized.
+		local tgttv_p is vxcl(this:steer_dir:forevector, this:steer_tgtdir:topvector):normalized.
+		
+		
+		set this:steer_pitch_delta to signed_angle(tgtv_v, this:steer_dir:forevector, this:steer_dir:starvector, 0).
+		set this:steer_yaw_delta to -signed_angle(tgtv_h, this:steer_dir:forevector, this:steer_dir:topvector, 0).
+		set this:steer_roll_delta to signed_angle(tgttv_p, this:steer_dir:topvector, this:steer_dir:forevector, 0).
+		
+		set this:throt_delta to this:thr_rpl_tgt - this:thr_cmd_rpl.
+	}).
+	
+	
+	
+	this:add("max_steervec_corr", 5).
+	this:add("steer_refv", SHIP:FACINg:topvector).
+	this:add("steer_thrvec", SHIP:FACINg:forevector).
+	this:add("steer_roll", 0).
+	this:add("steer_cmd_roll", 0).
+	
+	this:add("steer_tgtdir", SHIP:FACINg).
+	
+	
+
+	
+	this:add("set_steer_tgt", {
+		parameter new_thrvec.
+		
+		set this:steer_thrvec to new_thrvec.
+		
+		//required for continuous pilot input across several funcion calls
+		LOCAL time_gain IS ABS(this:iteration_dt/0.2).
+		
+		local max_roll_corr is 13 * time_gain * STEERINGMANAGER:MAXSTOPPINGTIME.
+		
+		local roll_delta is unfixangle(this:cur_steer_roll - this:steer_roll).
+		set roll_delta to sign(roll_delta) * min(abs(roll_delta) ,max_roll_corr).
+		
+		set this:steer_cmd_roll to this:cur_steer_roll - roll_delta.
+		
+		set this:steer_tgtdir to aimAndRoll(this:steer_thrvec, this:steer_refv, this:steer_cmd_roll).
+	}).
+	
+	this:add("steer_auto_thrvec", {
+		set this:steer_mode to "auto_thrvec".
+		
+		this:measure_cur_state().
+	
+		local steer_err_tol is 0.5.
+	
+		local max_roll_corr is 20.
+		
+		local cur_steervec is this:cur_dir:forevector.
+		local tgt_steervec is this:steer_tgtdir:forevector.
+		
+		local steer_err is vang(cur_steervec, tgt_steervec).
+		
+		if (steer_err > steer_err_tol) {
+			local steerv_norm is vcrs(cur_steervec, tgt_steervec).
+			local steerv_corr is min(this:max_steervec_corr, steer_err).
+			
+			set tgt_steervec to rodrigues(cur_steervec, steerv_norm, steerv_corr).
+		} else {
+			set tgt_steervec to tgt_steervec.
+		}
+		
+		local cur_topvec is vxcl(tgt_steervec, this:cur_dir:topvector).
+		local tgt_topvec is vxcl(tgt_steervec, this:steer_tgtdir:topvector).
+		
+		//local roll_err is signed_angle(tgt_topvec, cur_topvec, tgt_steervec, 0).
+		//local roll_corr is sign(roll_err) * min(abs(roll_err) ,max_roll_corr).
+		//
+		//print "roll_corr " + roll_corr + " " at (0,20).
+		//
+		//set tgt_topvec to rodrigues(cur_topvec, tgt_steervec, -roll_corr).
+	
+		set this:steer_dir to LOOKDIRUP(tgt_steervec, tgt_topvec ).
+	}).
+
+
+	this:add("steer_css", {
+		set this:steer_mode to "css".
+		
+		this:set_steering_css().
+		
+		this:measure_cur_state().
+	
+		//required for continuous pilot input across several funcion calls
+		LOCAL time_gain IS ABS(this:iteration_dt/0.2).
+		
+		//gains suitable for manoeivrable steerign in atmosphere
+		LOCAL pitchgain IS 0.7.
+		LOCAL rollgain IS 1.
+		LOCAL yawgain IS 0.7.
+		
+		LOCAL steer_tol IS 0.1.
+		
+		local input_pitch is SHIP:CONTROL:PILOTPITCH.
+		local input_roll is SHIP:CONTROL:PILOTROLL.
+		local input_yaw is SHIP:CONTROL:PILOTYAW.
+		
+		if (abs(input_pitch) < steer_tol) {
+			set input_pitch to 0. 
+		}
+		if (abs(input_roll) < steer_tol) {
+			set input_roll to 0. 
+		}
+		if (abs(input_yaw) < steer_tol) {
+			set input_yaw to 0. 
+		}
+
+		//measure input minus the trim settings
+		LOCAL deltaroll IS time_gain * rollgain * input_roll.
+		LOCAL deltapitch IS time_gain * pitchgain * input_pitch.
+		LOCAL deltayaw IS time_gain * yawgain * input_yaw.
+		
+		print input_pitch + "  " at (0,20).
+		print input_roll + "  " at (0,21).
+		print input_yaw + "  " at (0,22).
+		
+		local steer_fore is this:steer_dir:forevector.
+		local steer_top is this:steer_dir:topvector.
+		local steer_star is this:steer_dir:starvector.
+		
+		local new_steerfore is rodrigues(steer_fore, steer_top, deltayaw).
+		set new_steerfore to rodrigues(new_steerfore, steer_star, - deltapitch).
+		
+		local cur_fore is this:cur_dir:forevector.
+		
+		local cur_new_norm is vcrs(cur_fore, new_steerfore).
+		
+		LOCAL ang_dev IS MIN(this:max_steervec_corr, vang(cur_fore, new_steerfore) ).
+		
+		set new_steerfore to rodrigues(cur_fore, cur_new_norm, ang_dev).
+		
+		local new_steertop is vxcl(new_steerfore, steer_top).   
+		
+		set new_steertop to rodrigues(new_steertop, new_steerfore, - deltaroll).
+		
+		set this:steer_dir to LOOKDIRUP(new_steerfore, new_steertop ).
+	}).
+	
+	
+	this:add("thr_rpl_tgt", 0).
+	this:add("thr_cmd_tgt", 0).
+	this:add("thr_max", 1).	
+	this:add("thr_min", 0).	
+	
+	this:add("update_thr_cmd", {
+		local new_thr_rpl is CLAMP(this:thr_rpl_tgt, this:thr_min, this:thr_max).
+		set this:thr_cmd_tgt to throtteValueConverter(new_thr_rpl, this:thr_min).
+	}).
+	
+	this:add("thr_control_auto", {
+		set this:thr_mode to "thr_auto".
+	
+		this:update_thr_cmd().
+		
+		set this:thr_cmd to this:thr_cmd_tgt.
+		set this:thr_cmd_rpl to throtteValueConverter(this:thr_cmd, this:thr_min, TRUE).
+	}).
+	
+	
+	this:add("thr_control_css", {
+		set this:thr_mode to "thr_css".
+		
+		this:update_thr_cmd().
+	
+		local thr_input is  SHIP:CONTROL:PILOTMAINTHROTTLE.
+		set this:thr_cmd to thr_input.
+		set this:thr_cmd_rpl to throtteValueConverter(this:thr_cmd, this:thr_min, TRUE).
+	}).
+	
+	
+	this:add("print_debug",{
+		PARAMETER line.
+		
+		print "steer_mode : " + this:steer_mode + "    " at (0,line).
+		print "thr_mode : " + this:thr_mode + "    " at (0,line + 1).
+		
+		print "loop dt : " + round(this:iteration_dt(),3) + "    " at (0,line + 3).
+		
+		print "cur_steer_pitch : " + round(this:cur_steer_pitch,3) + "    " at (0,line + 5).
+		print "cur_steer_roll : " + round(this:cur_steer_roll,3) + "    " at (0,line + 6).
+		print "steer_cmd_roll : " + round(this:steer_cmd_roll,3) + "    " at (0,line + 7).
+		print "thr_rpl_tgt : " + round(this:thr_rpl_tgt,3) + "    " at (0,line + 8).
+		print "thr_cmd_tgt : " + round(this:thr_cmd_tgt,3) + "    " at (0,line + 9).
+		
+		print "steer_pitch_delta : " + round(this:steer_pitch_delta,3) + "    " at (0,line + 11).
+		print "steer_roll_delta : " + round(this:steer_roll_delta,3) + "    " at (0,line + 12).
+		print "steer_yaw_delta : " + round(this:steer_yaw_delta,3) + "    " at (0,line + 13).
+		print "throt_delta : " + round(this:throt_delta,3) + "    " at (0,line + 14).
+		
+	}).
+	
+	this:add("set_steering_auto", {
+		SET STEERINGMANAGER:MAXSTOPPINGTIME TO 2.
+	}).
+	
+	this:add("set_steering_css", {
+		SET STEERINGMANAGER:MAXSTOPPINGTIME TO 4.
+	}).
+	
+	this:add("set_rcs", {
+		PARAMETER on_.
+		
+		if (on_) {
+			RCS ON.
+		} else {
+			RCS OFF.
+		}
+	}).
+	
+	this:measure_cur_state().
+
+	return this.
 }
+
+
 
 //used in transition between UPFG and hover phases
 //calculates required acceleration to achieve target vertical speed by a target altitude

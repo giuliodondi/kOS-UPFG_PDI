@@ -2,7 +2,7 @@
 CLEARSCREEN.
 SET CONFIG:IPU TO 1200.	
 global debug_mode is true.
-global dap_debug is false.
+global dap_debug is true.
 
 GLOBAL log_data Is false.
 GLOBAL debug Is false.
@@ -52,6 +52,41 @@ function pdi_main_exec {
 	
 	initialise_vehicle().
 	
+	GLOBAL dap IS pdi_dap_factory().
+	
+	GLOBAL dap_gui_executor IS loop_executor_factory(
+												0.15,
+												{
+													//protection
+													if (SAS) {
+														SAS OFF.
+													}
+													
+													if (is_dap_auto()) {
+														dap:steer_auto_thrvec().
+														dap:thr_control_auto().
+													} else if (is_dap_css()) {
+														dap:steer_css().
+														dap:thr_control_css().
+													}
+													
+																										
+													if (dap_debug) {
+														//clearscreen.
+														clearvecdraws().
+														
+														dap:print_debug(2).
+														
+														arrow_ship(3 * dap:steer_thrvec,"steer_thrvec").
+														arrow_ship(2 * dap:steer_dir:forevector,"forevec").
+														arrow_ship(2 * dap:steer_dir:topvector,"topvec").
+													
+													}
+													
+													//dataViz().
+												}
+	).
+	
 	pdi_countdown_loop().
 	
 	//pdi_main_loop().
@@ -67,6 +102,7 @@ function pdi_countdown_loop {
 	SET vehiclestate["staging_in_progress"] TO TRUE.
 
 	
+	LOCK STEERING TO dap:steer_dir.
 	
 	SET vehiclestate["ops_mode"] TO 1.
 
@@ -94,6 +130,9 @@ function pdi_countdown_loop {
 				
 			} else {
 
+
+				dap:set_steer_tgt(vecYZ(upfgInternal["steering"])).
+				set dap:thr_rpl_tgt to 0.
 				
 				
 				//save steering info at pdi 
@@ -120,13 +159,13 @@ function pdi_countdown_loop {
 		}
 			
 	
-		IF (surfacestate["time"] > vehicle["ign_t"] - 65) {
-			set warp to 0.
-			SAS OFF.
-			RCS ON.
-			SET control["refvec"] TO -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
-			LOCK STEERING TO control["steerdir"].
-		}
+		//IF (surfacestate["time"] > vehicle["ign_t"] - 65) {
+		//	set warp to 0.
+		//	SAS OFF.
+		//	RCS ON.
+		//	SET control["refvec"] TO -SHIP:ORBIT:BODY:POSITION:NORMALIZED.
+		//	LOCK STEERING TO control["steerdir"].
+		//}
 	
 	}
 

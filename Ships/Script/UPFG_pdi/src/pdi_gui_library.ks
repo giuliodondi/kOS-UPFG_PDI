@@ -396,6 +396,22 @@ FUNCTION make_main_pdi_gui {
 	SET popup_box:STYLE:ALIGN TO "center".	
 	
 	popup_box:addspacing(10).
+	
+	
+	GLOBAL dap_b_box IS popup_box:ADDHLAYOUT().
+	SET dap_b_box:STYLE:WIDTH TO 105.
+	GLOBAL dap_b_text IS dap_b_box:ADDLABEL("DAP").
+	set dap_b_text:style:margin:v to -3.
+	GLOBAL dap_b IS dap_b_box:addpopupmenu().
+	set dap_b:style:margin:v to -3.
+	SET dap_b:STYLE:WIDTH TO 65.
+	SET dap_b:STYLE:HEIGHT TO 25.
+	SET dap_b:STYLE:ALIGN TO "center".
+	dap_b:addoption("AUTO").
+	dap_b:addoption("CSS").
+	
+	
+	popup_box:addspacing(8).
 
 	GLOBAL select_tgtbox IS popup_box:ADDHLAYOUT().
 	SET select_tgtbox:STYLE:WIDTH TO 175.
@@ -493,6 +509,14 @@ FUNCTION make_main_pdi_gui {
 
 	main_pdi_gui:SHOW().
 	
+}
+
+FUNCTION is_dap_css {
+	return (dap_b:VALUE = "CSS").
+}
+
+FUNCTION is_dap_auto {
+	return (dap_b:VALUE = "AUTO").
 }
 
 
