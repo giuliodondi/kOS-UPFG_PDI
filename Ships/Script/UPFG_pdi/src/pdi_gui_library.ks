@@ -488,12 +488,125 @@ FUNCTION make_main_pdi_gui {
 	SET pdi_main_display_clockbox:STYLe:HEIGHT TO 1.
 	GLOBAL pdi_main_display_clock IS pdi_main_display_clockbox:ADDLABEL("MET 00:00:00:00").
 	SET pdi_main_display_clock:STYLE:ALIGN TO "right".
-	SET pdi_main_display_clock:STYLE:margin:h to 20.
+	SET pdi_main_display_clock:STYLE:margin:h to 20.			   			   
 	
-	GLOBAL pdi_disp IS pdi_main_display:addvlayout().
-	SET pdi_disp:STYLE:WIDTH TO pdi_main_display:STYLE:WIDTH.
-	SET pdi_disp:STYLE:HEIGHT TO pdi_main_display:STYLE:HEIGHT - 2.
-	SET pdi_disp:STYLE:ALIGN TO "center".
+	// main display stuff 
+	
+	set pdi_traj_disp_mainbox:style:BG to "UPFG_pdi/src/gui_images/pdi_traj1_bg.png".
+	
+	GLOBAL pdi_traj_disp_overlaiddata IS pdi_main_display:addvlayout().
+	SET pdi_traj_disp_overlaiddata:STYLE:WIDTH TO pdi_main_display:STYLE:WIDTH.
+	SET pdi_traj_disp_overlaiddata:STYLE:HEIGHT TO pdi_main_display:STYLE:HEIGHT - 2.
+	SET pdi_traj_disp_overlaiddata:STYLE:ALIGN TO "center".
+	
+	GLOBAL pdi_traj_disp_counter IS 1.	
+	
+	clear_pdi_traj_data().
+	
+	
+	set pdi_traj_disp_mainbox:style:BG to "UPFG_pdi/src/gui_images/pdi_traj1_bg.png".
+	
+	pdi_traj_disp_overlaiddata:addspacing(50).
+	
+	GLOBAL pdi_traj_disp_main_data_box IS pdi_traj_disp_overlaiddata:ADDHLAYOUT().
+	SET pdi_traj_disp_main_data_box:STYLE:WIDTH TO pdi_traj_disp_overlaiddata:STYLE:WIDTH.
+    SET pdi_traj_disp_main_data_box:STYLE:HEIGHT TO pdi_traj_disp_overlaiddata:STYLE:HEIGHT.
+	
+	GLOBAL pdi_traj_disp_leftdatabox IS pdi_traj_disp_main_data_box:ADDVLAYOUT().
+	SET pdi_traj_disp_leftdatabox:STYLE:ALIGN TO "left".
+	SET pdi_traj_disp_leftdatabox:STYLE:WIDTH TO 180.
+    SET pdi_traj_disp_leftdatabox:STYLE:HEIGHT TO 300.
+	set pdi_traj_disp_leftdatabox:style:margin:h to 12.
+	set pdi_traj_disp_leftdatabox:style:margin:v to 10.
+	
+	
+	GLOBAL pdi_traj_disp_cont_abort_box IS pdi_traj_disp_leftdatabox:ADDVLAYOUT().
+	SET pdi_traj_disp_cont_abort_box:STYLE:ALIGN TO "right".
+	SET pdi_traj_disp_cont_abort_box:STYLE:WIDTH TO 130.
+    SET pdi_traj_disp_cont_abort_box:STYLE:HEIGHT TO 50.
+	set pdi_traj_disp_cont_abort_box:style:margin:h to 60.
+	
+	GLOBAL pdi_traj_cont_abort1 IS pdi_traj_disp_cont_abort_box:ADDLABEL("CONT ABORT").
+	set pdi_traj_cont_abort1:style:margin:v to -4.
+	GLOBAL pdi_traj_cont_abort2 IS pdi_traj_disp_cont_abort_box:ADDLABEL(" 2EO XXXXX").
+	set pdi_traj_cont_abort2:style:margin:v to -4.
+	GLOBAL pdi_traj_cont_abort3 IS pdi_traj_disp_cont_abort_box:ADDLABEL(" 3EO XXXXX").
+	set pdi_traj_cont_abort3:style:margin:v to -4.
+	
+	GLOBAL pdi_trajleftdata1 IS pdi_traj_disp_leftdatabox:ADDLABEL("Ḣ   xxxxxx").
+	set pdi_trajleftdata1:style:margin:v to -4.
+	GLOBAL pdi_trajleftdata2 IS pdi_traj_disp_leftdatabox:ADDLABEL("").
+	set pdi_trajleftdata2:style:margin:v to -4.
+	GLOBAL pdi_trajleftdata3 IS pdi_traj_disp_leftdatabox:ADDLABEL("R  xxxxxx").
+	set pdi_trajleftdata3:style:margin:v to -4.
+	GLOBAL pdi_trajleftdata4 IS pdi_traj_disp_leftdatabox:ADDLABEL("P xxxxxx").
+	set pdi_trajleftdata4:style:margin:v to -4.
+	GLOBAL pdi_trajleftdata5 IS pdi_traj_disp_leftdatabox:ADDLABEL("Y xxxxxx").
+	set pdi_trajleftdata5:style:margin:v to -4.
+	GLOBAL pdi_trajleftdata6 IS pdi_traj_disp_leftdatabox:ADDLABEL("T xxxxxx").
+	set pdi_trajleftdata6:style:margin:v to -4.
+	
+	
+	GLOBAL pdi_traj_disp_centredatabox IS pdi_traj_disp_main_data_box:ADDVLAYOUT().
+	SET pdi_traj_disp_centredatabox:STYLE:ALIGN TO "left".
+	SET pdi_traj_disp_centredatabox:STYLE:WIDTH TO 150.
+    SET pdi_traj_disp_centredatabox:STYLE:HEIGHT TO 300.
+	set pdi_traj_disp_centredatabox:style:margin:h to 0.
+	set pdi_traj_disp_centredatabox:style:margin:v to 0.
+	
+	pdi_traj_disp_centredatabox:addspacing(200).
+	
+
+	
+	
+	GLOBAL pdi_traj_disp_rightdatabox IS pdi_traj_disp_main_data_box:ADDHLAYOUT().
+	SET pdi_traj_disp_rightdatabox:STYLE:ALIGN TO "left".
+	SET pdi_traj_disp_rightdatabox:STYLE:WIDTH TO 180.
+    SET pdi_traj_disp_rightdatabox:STYLE:HEIGHT TO 300.
+	set pdi_traj_disp_rightdatabox:style:margin:h to 40.
+	set pdi_traj_disp_rightdatabox:style:margin:v to 2.
+	
+	make_g_slider(pdi_traj_disp_rightdatabox, 160).
+	
+	GLOBAL pdi_traj_disp_rightdatabox2 IS pdi_traj_disp_rightdatabox:ADDVLAYOUT().
+	SET pdi_traj_disp_rightdatabox2:STYLE:ALIGN TO "left".
+	SET pdi_traj_disp_rightdatabox2:STYLE:WIDTH TO 125.
+    SET pdi_traj_disp_rightdatabox2:STYLE:HEIGHT TO 300.
+	set pdi_traj_disp_rightdatabox2:style:margin:h to 5.
+	set pdi_traj_disp_rightdatabox2:style:margin:v to 10.
+	
+	GLOBAL pdi_traj_disp_upfg_box IS pdi_traj_disp_rightdatabox2:ADDVLAYOUT().
+	SET pdi_traj_disp_upfg_box:STYLE:ALIGN TO "right".
+	SET pdi_traj_disp_upfg_box:STYLE:WIDTH TO 125.
+    SET pdi_traj_disp_upfg_box:STYLE:HEIGHT TO 1.
+	
+	GLOBAL pdi_traj_disp_upfg_box2 IS pdi_traj_disp_upfg_box:ADDVLAYOUT().
+	SET pdi_traj_disp_upfg_box2:STYLE:ALIGN TO "right".
+	SET pdi_traj_disp_upfg_box2:STYLE:WIDTH TO 125.
+    SET pdi_traj_disp_upfg_box2:STYLE:HEIGHT TO 115.
+	
+	GLOBAL pdi_trajupfgdata1 IS pdi_traj_disp_upfg_box2:ADDLABEL("TGO  xxxxxx").
+	set pdi_trajupfgdata1:style:margin:v to -4.
+	GLOBAL pdi_trajupfgdata2 IS pdi_traj_disp_upfg_box2:ADDLABEL("VGO  xxxxxx").
+	set pdi_trajupfgdata2:style:margin:v to -4.
+	
+	pdi_traj_disp_rightdatabox2:addspacing(150).
+	
+	GLOBAL pdi_trajrightdata4 IS pdi_traj_disp_rightdatabox2:ADDLABEL("THROT xxx").
+	set pdi_trajrightdata4:style:margin:v to -4.
+	GLOBAL pdi_trajrightdata5 IS pdi_traj_disp_rightdatabox2:ADDLABEL("PROP  xxx").
+	set pdi_trajrightdata5:style:margin:v to -4.
+	
+	GLOBAL pdi_traj_disp_engout_box IS pdi_traj_disp_rightdatabox2:ADDVLAYOUT().
+	SET pdi_traj_disp_engout_box:STYLE:ALIGN TO "right".
+	SET pdi_traj_disp_engout_box:STYLE:WIDTH TO 125.
+    SET pdi_traj_disp_engout_box:STYLE:HEIGHT TO 115.
+	set pdi_traj_disp_engout_box:style:margin:h to 0.
+	set pdi_traj_disp_engout_box:style:margin:v to 45.
+	
+	GLOBAL pdi_traj_engout_data is LIST().
+	
+	//msg box 
 	
 	main_pdi_gui:addspacing(3).
 	
@@ -511,6 +624,10 @@ FUNCTION make_main_pdi_gui {
 	
 }
 
+FUNCTION clear_pdi_traj_data {
+	pdi_traj_disp_overlaiddata:clear().
+}
+
 FUNCTION is_dap_css {
 	return (dap_b:VALUE = "CSS").
 }
@@ -519,6 +636,34 @@ FUNCTION is_dap_auto {
 	return (dap_b:VALUE = "AUTO").
 }
 
+
+function make_g_slider {
+	parameter container_box.
+	parameter v_margin.
+	
+	SET main_pdi_gui:skin:verticalslider:bg TO "UPFG_pdi/src/gui_images/g_slider_bg2.png".
+	set main_pdi_gui:skin:verticalsliderthumb:BG to "UPFG_pdi/src/gui_images/vslider_thumb.png".
+	set main_pdi_gui:skin:verticalsliderthumb:HEIGHT to 15.
+	set main_pdi_gui:skin:verticalsliderthumb:WIDTH to 11.
+	set main_pdi_gui:skin:verticalsliderthumb:margin:h to 22.
+	
+	GLOBAL g_sliderbox IS container_box:ADDHLAYOUT().
+	set g_sliderbox:style:margin:v to v_margin.
+	SET g_sliderbox:STYLe:WIDTH TO 40.
+	GLOBAL g_slider is g_sliderbox:addvslider(1,3.4,0.6).
+	SET g_slider:STYLE:ALIGN TO "Center".
+	SET g_slider:style:vstretch to false.
+	SET g_slider:style:hstretch to false.
+	SET g_slider:STYLE:WIDTH TO 27.
+	SET g_slider:STYLE:HEIGHT TO 100.
+	
+}
+
+function update_g_slider {
+	parameter g_val.
+	
+	SET g_slider:VALUE TO CLAMP(g_val,g_slider:MIN,g_slider:MAX).
+}
 
 function pdi_add_scroll_msg {
 	parameter msg.
